@@ -1,0 +1,4 @@
+timestamp,task_count,delay_seconds,worker_count,total_runtime_seconds,throughput_tasks_per_second,final_status,completed_tasks,failed_tasks
+2026-05-01T23:37:57,20,1,1,20.36,0.98,SUCCESS,20,0
+2026-05-01T23:38:25,20,1,2,10.64,1.88,SUCCESS,20,0
+2026-05-01T23:38:46,20,1,4,5.45,3.67,SUCCESS,20,0
