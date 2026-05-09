@@ -2,7 +2,7 @@ import math
 import os
 import random
 import time
-from typing import Dict, List
+from typing import Dict, List, Union
 
 # Keep NumPy from using multiple internal threads per Celery worker process.
 # This makes worker-count scaling tests cleaner and easier to interpret.
@@ -40,15 +40,64 @@ def slow_square_number(x: int, delay_seconds: float = 1.0) -> int:
 @celery_app.task(bind=True, max_retries=3)
 def unreliable_square(self, x: int, fail_on_even: bool = True) -> int:
     """
-    Unreliable task used for retry and failure testing.
+    Permanent failure test task.
 
-    This is kept for the reliability phase of the project.
+    If fail_on_even is true, even numbers intentionally fail. Celery retries the
+    task up to max_retries, but because the failure condition never changes,
+    even-numbered tasks eventually end in FAILURE.
+
+    This is useful for proving that the system can detect failed tasks and
+    report PARTIAL_FAILURE at the job level.
     """
     try:
         if fail_on_even and x % 2 == 0:
             raise ValueError(f"Intentional failure for even number: {x}")
 
         return x * x
+
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=1)
+
+
+@celery_app.task(bind=True, max_retries=3)
+def transient_unreliable_square(
+    self,
+    x: int,
+    fail_attempts: int = 2,
+) -> Dict[str, Union[int, str]]:
+    """
+    Transient failure test task.
+
+    This task intentionally fails for the first fail_attempts attempts, then
+    succeeds on a later retry.
+
+    Celery's self.request.retries value starts at 0 on the first attempt.
+    For example, if fail_attempts is 2:
+
+    attempt 1: retries = 0, fail and retry
+    attempt 2: retries = 1, fail and retry
+    attempt 3: retries = 2, succeed
+
+    This is useful for proving that retry behavior works, not just failure
+    reporting.
+    """
+    current_retry_count = self.request.retries
+    current_attempt_number = current_retry_count + 1
+
+    try:
+        if current_retry_count < fail_attempts:
+            raise ValueError(
+                f"Transient failure for {x} on attempt {current_attempt_number}"
+            )
+
+        return {
+            "input": x,
+            "output": x * x,
+            "workload": "transient_unreliable",
+            "attempts": current_attempt_number,
+            "retries_used": current_retry_count,
+            "status": "succeeded_after_retry",
+        }
 
     except Exception as exc:
         raise self.retry(exc=exc, countdown=1)

@@ -2,11 +2,11 @@
 
 ## Overview
 
-Distributed AI Task Orchestrator is a senior project prototype that demonstrates distributed task execution, progress tracking, and performance scaling using Python, FastAPI, Celery, and Redis.
+Distributed AI Task Orchestrator is a senior project prototype that demonstrates distributed task execution, progress tracking, reliability handling, retry behavior, and performance scaling using Python, FastAPI, Celery, and Redis.
 
-The system accepts batches of AI-style computational tasks, places them into a Redis-backed task queue, processes them asynchronously using Celery workers, tracks job progress, and records benchmark results for performance analysis.
+The system accepts batches of AI-style computational tasks, places them into a Redis-backed task queue, processes them asynchronously using Celery workers, tracks job progress, records benchmark results, and generates graphs for performance analysis.
 
-The main purpose of this project is to demonstrate distributed systems engineering, backend API design, asynchronous task processing, functional task execution, and quantitative scalability analysis.
+The main purpose of this project is to demonstrate distributed systems engineering, backend API design, asynchronous task processing, functional task execution, reliability handling, and quantitative scalability analysis.
 
 ## Project Goals
 
@@ -20,8 +20,10 @@ This project is designed to show that a batch of computational work can be:
 - Measured using benchmark scripts
 - Compared across different worker counts
 - Analyzed using benchmark graphs
+- Tested for permanent failure handling
+- Tested for transient failure retry behavior
 
-The project is intentionally controlled and measurable so that scaling behavior can be tested and explained clearly.
+The project is intentionally controlled and measurable so that scaling and reliability behavior can be tested and explained clearly.
 
 ## Current Status
 
@@ -34,12 +36,14 @@ The current prototype supports:
 - Slow task workload for baseline scaling
 - Matrix compute workload for AI-style numerical benchmarking
 - Vector similarity workload for AI-style vector comparison
+- Permanent failure testing
+- Transient failure retry testing
 - Job status tracking
 - Completed and failed task counts
+- Retry tracking during job status checks
 - Benchmark logging to CSV
 - Automated scaling experiments
 - Benchmark graph generation
-- Initial retry and unreliable task testing support
 
 ## Tech Stack
 
@@ -51,7 +55,7 @@ The current prototype supports:
 - Matplotlib
 - Bash scripting
 - CSV-based benchmark logging
-- Docker planned for later project phases
+- Docker support planned for continued integration work
 
 ## High-Level Architecture
 
@@ -107,11 +111,23 @@ distributed-ai-task-orchestrator/
 
 ## Workload Types
 
-The system currently supports three workload types.
+The system currently supports five workload types.
+
+### Standard Square Workload
+
+The standard square workload is used for simple API testing.
+
+Each task:
+
+```text
+1. Receives a number
+2. Squares the number
+3. Returns the result
+```
 
 ### Slow Workload
 
-The slow workload uses a controlled delay to simulate work. This is useful for testing the queue, workers, job status tracking, and basic scaling behavior.
+The slow workload uses a controlled delay to simulate work. This is useful for testing the queue, workers, job status tracking, and baseline scaling behavior.
 
 Each task:
 
@@ -161,6 +177,41 @@ Each vector task:
 ```
 
 This workload is useful for representing AI-adjacent tasks such as embedding comparison, search, recommendation, and retrieval systems.
+
+### Reliability Workloads
+
+The project includes two reliability-focused workloads.
+
+#### Permanent Failure Workload
+
+This workload intentionally causes certain tasks to fail permanently.
+
+Example behavior:
+
+```text
+Input: [1, 2, 3, 4]
+Odd numbers succeed
+Even numbers fail
+Final job status becomes PARTIAL_FAILURE
+```
+
+This proves that failed tasks are detected and reported correctly.
+
+#### Transient Failure Workload
+
+This workload intentionally fails tasks for a set number of attempts, then allows them to succeed after retry.
+
+Example behavior:
+
+```text
+Input: [1, 2, 3, 4]
+fail_attempts: 2
+Each task fails twice
+Each task succeeds on the third attempt
+Final job status becomes SUCCESS
+```
+
+This proves that retry behavior works and that transient failures can eventually complete successfully.
 
 ## Running the System in Development Mode
 
@@ -220,7 +271,14 @@ POST /submit_slow_batch
 
 Submits a batch of slower tasks used for baseline benchmark testing.
 
-This endpoint is useful because it creates a predictable workload where each task takes a controlled amount of time.
+Example request body:
+
+```json
+{
+  "numbers": [1, 2, 3, 4],
+  "delay_seconds": 1
+}
+```
 
 ### Submit a Matrix Batch
 
@@ -262,9 +320,51 @@ Example request body:
 POST /submit_unreliable_batch
 ```
 
-Submits tasks that can be used for failure and retry testing.
+Submits tasks that can permanently fail.
 
-This endpoint supports the reliability portion of the project, but the reliability behavior still needs formal validation and documentation.
+Example request body:
+
+```json
+{
+  "numbers": [1, 2, 3, 4],
+  "fail_on_even": true
+}
+```
+
+Expected behavior:
+
+```text
+1 succeeds
+2 fails
+3 succeeds
+4 fails
+Final job status: PARTIAL_FAILURE
+```
+
+### Submit a Transient Unreliable Batch
+
+```text
+POST /submit_transient_unreliable_batch
+```
+
+Submits tasks that fail temporarily and then succeed after retry.
+
+Example request body:
+
+```json
+{
+  "numbers": [1, 2, 3, 4],
+  "fail_attempts": 2
+}
+```
+
+Expected behavior:
+
+```text
+Each task fails twice
+Each task succeeds on the third attempt
+Final job status: SUCCESS
+```
 
 ### Check Job Status
 
@@ -283,6 +383,7 @@ completed task count
 failed task count
 pending task count
 running task count
+retrying task count
 progress percentage
 metadata
 ```
@@ -299,33 +400,25 @@ Returns results for a submitted job.
 
 The benchmark script submits a workload, polls the job status endpoint, measures total runtime, calculates throughput, and saves the result to a CSV file.
 
-Example slow workload benchmark:
+The automated scaling experiment script is the preferred way to run repeatable benchmark comparisons.
+
+Example slow workload scaling experiment:
 
 ```bash
-python3 scripts/benchmark.py --tasks 20 --delay 1 --workers 4 --workload slow
+./scripts/run_scaling_experiment.sh 1 2 4 8
 ```
 
-Example matrix workload benchmark:
+Example matrix workload scaling experiment:
 
 ```bash
-python3 scripts/benchmark.py --tasks 20 --workers 4 --workload matrix --size 700
+WORKLOAD=matrix SIZE=700 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4 8 16 32
 ```
 
-Example vector workload benchmark:
+Example vector workload scaling experiment:
 
 ```bash
-python3 scripts/benchmark.py --tasks 20 --workers 4 --workload vector --size 1000
+WORKLOAD=vector SIZE=1000 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4
 ```
-
-Benchmark parameters:
-
-* `--tasks`: number of tasks submitted
-* `--delay`: seconds per task for the slow workload
-* `--workers`: worker count recorded for the benchmark result
-* `--workload`: workload type, such as slow, matrix, or vector
-* `--size`: workload size for matrix or vector workloads
-* `--poll-interval`: number of seconds between job status checks
-* `--results-file`: CSV file where benchmark results are saved
 
 Benchmark results are saved to:
 
@@ -360,26 +453,6 @@ benchmarks/results_archive_calibration_runs.csv
 This keeps the official benchmark results clean while preserving earlier testing history.
 
 ## Automated Scaling Experiment
-
-The project includes an automated scaling experiment script that runs benchmarks across multiple worker counts.
-
-Example slow workload scaling experiment:
-
-```bash
-./scripts/run_scaling_experiment.sh 1 2 4 8
-```
-
-Example matrix workload scaling experiment:
-
-```bash
-WORKLOAD=matrix SIZE=700 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4 8 16 32
-```
-
-Example vector workload scaling experiment:
-
-```bash
-WORKLOAD=vector SIZE=1000 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4
-```
 
 The scaling experiment script:
 
@@ -476,17 +549,98 @@ The runtime graph shows that runtime decreases from 1 to 8 workers, then increas
 
 The throughput graph shows that throughput improves from 1 to 8 workers, then drops at 16 and remains below the 8-worker result at 32 workers.
 
+## Reliability Validation
+
+Reliability behavior has been validated with two tests.
+
+### Permanent Failure Test
+
+Endpoint:
+
+```text
+POST /submit_unreliable_batch
+```
+
+Test input:
+
+```json
+{
+  "numbers": [1, 2, 3, 4],
+  "fail_on_even": true
+}
+```
+
+Observed result:
+
+```text
+Final status: PARTIAL_FAILURE
+Total tasks: 4
+Completed tasks: 2
+Failed tasks: 2
+Progress: 100.0
+```
+
+Task-level behavior:
+
+```text
+1 succeeded
+2 failed with intentional failure
+3 succeeded
+4 failed with intentional failure
+```
+
+This proves that the system detects task failures and reports partial job failure correctly.
+
+### Transient Retry Test
+
+Endpoint:
+
+```text
+POST /submit_transient_unreliable_batch
+```
+
+Test input:
+
+```json
+{
+  "numbers": [1, 2, 3, 4],
+  "fail_attempts": 2
+}
+```
+
+Observed result:
+
+```text
+Final status: SUCCESS
+Total tasks: 4
+Completed tasks: 4
+Failed tasks: 0
+Retrying tasks: 0
+Progress: 100.0
+```
+
+Task-level behavior:
+
+```text
+Each task failed twice
+Each task succeeded on the third attempt
+Each task returned attempts: 3
+Each task returned retries_used: 2
+```
+
+This proves that the system supports retry behavior for transient failures.
+
 ## Requirements Progress
 
-| Requirement                           | Status                 | Evidence                                                                                                   |
-| ------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| R1 Job Submission                     | Working                | The API accepts batch jobs and returns a job ID                                                            |
-| R2 Distributed Task Execution         | Working                | Celery workers process queued tasks through Redis                                                          |
-| R3 Progress Reporting                 | Working                | Job status reports completed tasks, failed tasks, total tasks, and progress percentage                     |
-| R4 Deterministic Functional Execution | Working                | Matrix and vector tasks use deterministic seeded inputs and return repeatable checksum-style outputs       |
-| R5 Performance Measurement            | Working                | Benchmark script records runtime and throughput to CSV                                                     |
-| R6 Scaling Requirement                | Working                | Matrix scaling improved from 0.40 to 0.87 tasks/sec from 1 to 4 workers, about 2.18x                       |
-| R7 Reliability                        | Initial support exists | Unreliable batch and retry testing support exist, but formal reliability validation is still a later phase |
+| Requirement                           | Status  | Evidence                                                                                                |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| R1 Job Submission                     | Working | The API accepts batch jobs and returns a job ID                                                         |
+| R2 Distributed Task Execution         | Working | Celery workers process queued tasks through Redis                                                       |
+| R3 Progress Reporting                 | Working | Job status reports completed, failed, pending, running, retrying, and progress values                   |
+| R4 Deterministic Functional Execution | Working | Matrix and vector tasks use deterministic seeded inputs and return repeatable checksum-style outputs    |
+| R5 Performance Measurement            | Working | Benchmark script records runtime and throughput to CSV                                                  |
+| R6 Scaling Requirement                | Working | Matrix scaling improved from 0.40 to 0.87 tasks/sec from 1 to 4 workers, about 2.18x                    |
+| R7 Reliability                        | Working | Permanent failures report PARTIAL_FAILURE, while transient failures retry and eventually report SUCCESS |
 
 ## What Has Been Implemented
 
@@ -497,46 +651,45 @@ The throughput graph shows that throughput improves from 1 to 8 workers, then dr
 * Slow benchmark workload
 * Matrix compute workload
 * Vector similarity workload
+* Permanent failure workload
+* Transient retry workload
 * Real-time job progress tracking
+* Retry count visibility in task results
 * Benchmark script with CSV logging
 * Automated scaling experiment script
 * Final scaling experiment summary output
 * Benchmark graph generation
-* Initial unreliable task endpoint
-* Initial retry and failure tracking support
 * Development startup script with process cleanup
 
 ## Next Steps
 
-### 1. Reliability Validation
+### 1. Docker Integration Review
 
-* Test unreliable task execution
-* Confirm retry behavior
-* Confirm final failed task reporting
-* Document reliability behavior as evidence for R7
+* Confirm current Docker files match the updated API and worker structure
+* Make sure Redis, FastAPI, and Celery can run through Docker
+* Ensure matrix and reliability workloads work in the Docker environment
 
-### 2. Docker Compose Support
+### 2. Documentation and Demo Readiness
 
-* Add a full multi-service Docker Compose setup
-* Run API, Redis, and workers through containers
-* Make project startup more reproducible across machines
-
-### 3. Documentation and Demo Readiness
-
-* Keep README updated with current commands and results
 * Add a clear project demonstration flow
 * Document how each requirement is satisfied
 * Keep benchmark evidence clean and reproducible
+* Prepare commands for live demonstration
 
-### 4. Final Demonstration Preparation
+### 3. Final Demonstration Preparation
 
-* Create a repeatable demo script
 * Show job submission
 * Show status tracking
+* Show reliability behavior
 * Show benchmark results
-* Show scaling evidence
 * Show benchmark graphs
-* Show reliability behavior once fully validated
+* Show scaling evidence
+
+### 4. Further Reliability Improvements
+
+* Add optional retry configuration per request
+* Add clearer retry history if needed
+* Add persistent job storage if the project scope allows
 
 ## Senior Project Significance
 
@@ -549,15 +702,16 @@ This project is significant because it demonstrates several professional softwar
 * Queue-based architecture
 * Functional task execution
 * AI-style numerical workload orchestration
+* Failure handling
+* Retry behavior
 * Performance benchmarking
 * Scalability analysis
-* Reliability and retry handling
 
-The project is also resume-relevant because it shows practical experience with backend systems, task queues, performance measurement, and infrastructure-minded Python development.
+The project is also resume-relevant because it shows practical experience with backend systems, task queues, reliability handling, performance measurement, and infrastructure-minded Python development.
 
 ## Purpose
 
-The purpose of this project is not to build a large production AI platform. Instead, the goal is to build a controlled and explainable distributed task orchestration system that simulates AI-style workloads and allows performance scaling to be measured clearly.
+The purpose of this project is not to build a large production AI platform. Instead, the goal is to build a controlled and explainable distributed task orchestration system that simulates AI-style workloads and allows performance scaling and reliability behavior to be measured clearly.
 
 This makes the project practical for a senior project because it is:
 

@@ -13,6 +13,7 @@ from app.worker.tasks import (
     matrix_compute_task,
     slow_square_number,
     square_number,
+    transient_unreliable_square,
     unreliable_square,
     vector_similarity_task,
 )
@@ -27,7 +28,7 @@ redis_client = redis.Redis.from_url(
 app = FastAPI(
     title="Distributed AI Task Orchestrator",
     description="Distributed task orchestration prototype using FastAPI, Redis, and Celery.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 
@@ -45,9 +46,14 @@ class UnreliableBatchRequest(BaseModel):
     fail_on_even: bool = True
 
 
+class TransientUnreliableBatchRequest(BaseModel):
+    numbers: List[int] = Field(..., min_length=1)
+    fail_attempts: int = Field(2, ge=0, le=3)
+
+
 class MatrixBatchRequest(BaseModel):
     task_count: int = Field(20, ge=1)
-    matrix_size: int = Field(75, ge=1)
+    matrix_size: int = Field(700, ge=1)
 
 
 class VectorBatchRequest(BaseModel):
@@ -183,6 +189,7 @@ def submit_unreliable_batch(request: UnreliableBatchRequest) -> Dict[str, Any]:
         metadata={
             "numbers": request.numbers,
             "fail_on_even": request.fail_on_even,
+            "failure_type": "permanent_when_even",
         },
     )
 
@@ -192,6 +199,37 @@ def submit_unreliable_batch(request: UnreliableBatchRequest) -> Dict[str, Any]:
         "task_count": len(task_ids),
         "workload": "unreliable",
         "fail_on_even": request.fail_on_even,
+        "failure_type": "permanent_when_even",
+    }
+
+
+@app.post("/submit_transient_unreliable_batch")
+def submit_transient_unreliable_batch(
+    request: TransientUnreliableBatchRequest,
+) -> Dict[str, Any]:
+    task_ids = []
+
+    for number in request.numbers:
+        task = transient_unreliable_square.delay(number, request.fail_attempts)
+        task_ids.append(task.id)
+
+    job_id = _create_job(
+        workload="transient_unreliable",
+        task_ids=task_ids,
+        metadata={
+            "numbers": request.numbers,
+            "fail_attempts": request.fail_attempts,
+            "failure_type": "transient_then_success",
+        },
+    )
+
+    return {
+        "message": "Transient unreliable batch submitted",
+        "job_id": job_id,
+        "task_count": len(task_ids),
+        "workload": "transient_unreliable",
+        "fail_attempts": request.fail_attempts,
+        "failure_type": "transient_then_success",
     }
 
 
@@ -258,6 +296,7 @@ def job_status(job_id: str) -> Dict[str, Any]:
     failed_tasks = 0
     pending_tasks = 0
     running_tasks = 0
+    retrying_tasks = 0
 
     for task_id in task_ids:
         async_result = AsyncResult(task_id, app=celery_app)
@@ -266,11 +305,14 @@ def job_status(job_id: str) -> Dict[str, Any]:
             completed_tasks += 1
         elif async_result.failed():
             failed_tasks += 1
-        elif async_result.status in ["PENDING", "RETRY"]:
+        elif async_result.status == "RETRY":
+            retrying_tasks += 1
+        elif async_result.status == "PENDING":
             pending_tasks += 1
         else:
             running_tasks += 1
 
+    unfinished_tasks = pending_tasks + running_tasks + retrying_tasks
     finished_tasks = completed_tasks + failed_tasks
     progress_percent = round((finished_tasks / total_tasks) * 100, 2)
 
@@ -278,7 +320,7 @@ def job_status(job_id: str) -> Dict[str, Any]:
         status = "PARTIAL_FAILURE"
     elif completed_tasks == total_tasks:
         status = "SUCCESS"
-    elif finished_tasks > 0 or running_tasks > 0:
+    elif unfinished_tasks > 0 or finished_tasks > 0:
         status = "IN_PROGRESS"
     else:
         status = "PENDING"
@@ -292,6 +334,7 @@ def job_status(job_id: str) -> Dict[str, Any]:
         "failed_tasks": failed_tasks,
         "pending_tasks": pending_tasks,
         "running_tasks": running_tasks,
+        "retrying_tasks": retrying_tasks,
         "progress_percent": progress_percent,
         "metadata": json.loads(job_data.get("metadata", "{}")),
     }
