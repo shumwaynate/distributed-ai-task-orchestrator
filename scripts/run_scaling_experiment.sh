@@ -1,84 +1,135 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
-TASK_COUNT=20
-DELAY_SECONDS=1
+TASKS="${TASKS:-20}"
+DELAY="${DELAY:-1}"
+WORKLOAD="${WORKLOAD:-slow}"
+SIZE="${SIZE:-75}"
+POLL_INTERVAL="${POLL_INTERVAL:-0.5}"
+
+RESULT_SUMMARY=()
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: ./scripts/run_scaling_experiment.sh <worker_count_1> <worker_count_2> ..."
-    echo "Example: ./scripts/run_scaling_experiment.sh 1 2 4"
+    echo "Usage: ./scripts/run_scaling_experiment.sh 1 2 4 8"
+    echo ""
+    echo "Optional environment variables:"
+    echo "  TASKS=20"
+    echo "  DELAY=1"
+    echo "  WORKLOAD=slow"
+    echo "  WORKLOAD=matrix"
+    echo "  WORKLOAD=vector"
+    echo "  SIZE=75"
+    echo ""
+    echo "Examples:"
+    echo "  ./scripts/run_scaling_experiment.sh 1 2 4"
+    echo "  WORKLOAD=matrix SIZE=250 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4"
+    echo "  WORKLOAD=vector SIZE=1000 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4"
     exit 1
 fi
 
-for WORKER_COUNT in "$@"; do
-    if ! [[ "$WORKER_COUNT" =~ ^[0-9]+$ ]]; then
-        echo "Error: Worker count must be a positive whole number. Invalid value: $WORKER_COUNT"
-        exit 1
+cleanup() {
+    if [ -n "${START_DEV_PID:-}" ]; then
+        echo "Stopping development environment..."
+        kill "$START_DEV_PID" 2>/dev/null || true
+        wait "$START_DEV_PID" 2>/dev/null || true
     fi
-
-    if [ "$WORKER_COUNT" -lt 1 ]; then
-        echo "Error: Worker count must be at least 1. Invalid value: $WORKER_COUNT"
-        exit 1
-    fi
-done
+}
 
 wait_for_api() {
-    echo "Waiting for API to become ready..."
+    echo "Waiting for API to become available..."
 
-    for i in {1..30}; do
-        if curl -s "http://127.0.0.1:8000/docs" > /dev/null; then
+    for attempt in {1..30}; do
+        if curl -s "http://127.0.0.1:8000/" >/dev/null; then
             echo "API is ready."
             return 0
         fi
 
-        echo "API not ready yet... attempt $i/30"
         sleep 1
     done
 
-    echo "Error: API did not become ready in time."
+    echo "API did not become ready in time."
     return 1
 }
 
-cleanup_docker() {
-    echo "Stopping Docker environment..."
-    docker compose down
-}
+run_single_experiment() {
+    local workers="$1"
+    local log_file
 
-echo "Starting scaling experiment"
-echo "Task count: $TASK_COUNT"
-echo "Delay seconds per task: $DELAY_SECONDS"
-echo "Worker counts: $*"
+    log_file="$(mktemp)"
 
-for WORKER_COUNT in "$@"; do
     echo ""
-    echo "========================================"
-    echo "Running benchmark with $WORKER_COUNT worker(s)"
-    echo "========================================"
+    echo "Starting scaling experiment run"
+    echo "Workers: $workers"
+    echo "Tasks: $TASKS"
+    echo "Workload: $WORKLOAD"
 
-    cleanup_docker
+    if [ "$WORKLOAD" = "slow" ]; then
+        echo "Delay: $DELAY"
+    else
+        echo "Size: $SIZE"
+    fi
 
-    export WORKER_CONCURRENCY="$WORKER_COUNT"
-
-    docker compose up --build -d
+    ./scripts/start_dev.sh "$workers" &
+    START_DEV_PID=$!
 
     wait_for_api
 
     python3 scripts/benchmark.py \
-        --tasks "$TASK_COUNT" \
-        --delay "$DELAY_SECONDS" \
-        --workers "$WORKER_COUNT"
+        --tasks "$TASKS" \
+        --delay "$DELAY" \
+        --workers "$workers" \
+        --workload "$WORKLOAD" \
+        --size "$SIZE" \
+        --poll-interval "$POLL_INTERVAL" | tee "$log_file"
 
-    cleanup_docker
+    local runtime
+    local throughput
+    local final_status
 
-    echo "Completed benchmark with $WORKER_COUNT worker(s)"
+    runtime="$(grep "Total runtime:" "$log_file" | tail -n 1 | awk '{print $3}')"
+    throughput="$(grep "Throughput:" "$log_file" | tail -n 1 | awk '{print $2}')"
+    final_status="$(grep "Final status:" "$log_file" | tail -n 1 | awk '{print $3}')"
+
+    RESULT_SUMMARY+=("$workers|$runtime|$throughput|$final_status")
+
+    rm -f "$log_file"
+
+    cleanup
+    START_DEV_PID=""
+
+    echo "Finished run for $workers workers."
+    sleep 2
+}
+
+print_summary() {
+    echo ""
+    echo "Scaling experiment complete."
+    echo ""
+    echo "Summary"
+    echo "Workload: $WORKLOAD"
+    echo "Tasks: $TASKS"
+
+    if [ "$WORKLOAD" = "slow" ]; then
+        echo "Delay: $DELAY"
+    else
+        echo "Size: $SIZE"
+    fi
+
+    echo ""
+    printf "%-10s %-18s %-28s %-15s\n" "Workers" "Runtime Seconds" "Throughput Tasks Per Second" "Final Status"
+    printf "%-10s %-18s %-28s %-15s\n" "-------" "---------------" "---------------------------" "------------"
+
+    for row in "${RESULT_SUMMARY[@]}"; do
+        IFS="|" read -r workers runtime throughput final_status <<< "$row"
+        printf "%-10s %-18s %-28s %-15s\n" "$workers" "$runtime" "$throughput" "$final_status"
+    done
+}
+
+trap cleanup EXIT
+
+for workers in "$@"; do
+    run_single_experiment "$workers"
 done
 
-echo ""
-echo "Generating benchmark graphs..."
-python3 scripts/plot_benchmarks.py
-
-echo ""
-echo "Scaling experiment complete."
-echo "Results saved to benchmarks/results.csv"
-echo "Graphs saved to benchmarks/graphs/"
+print_summary

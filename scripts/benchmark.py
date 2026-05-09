@@ -1,140 +1,212 @@
 import argparse
 import csv
-import json
 import time
-import urllib.request
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
 
+import requests
 
-API_BASE_URL = "http://127.0.0.1:8000"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RESULTS_PATH = PROJECT_ROOT / "benchmarks" / "results.csv"
+DEFAULT_RESULTS_FILE = PROJECT_ROOT / "benchmarks" / "results.csv"
+API_BASE_URL = "http://127.0.0.1:8000"
+
+DEFAULT_FIELDNAMES = [
+    "timestamp",
+    "workload",
+    "task_count",
+    "delay_seconds",
+    "workload_size",
+    "worker_count",
+    "total_runtime_seconds",
+    "throughput_tasks_per_second",
+    "final_status",
+    "completed_tasks",
+    "failed_tasks",
+]
 
 
-def post_json(url, data):
-    request_data = json.dumps(data).encode("utf-8")
-
-    request = urllib.request.Request(
-        url,
-        data=request_data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    with urllib.request.urlopen(request) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def get_json(url):
-    with urllib.request.urlopen(url) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def save_benchmark_result(result):
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    fieldnames = [
-        "timestamp",
-        "task_count",
-        "delay_seconds",
-        "worker_count",
-        "total_runtime_seconds",
-        "throughput_tasks_per_second",
-        "final_status",
-        "completed_tasks",
-        "failed_tasks",
-    ]
-
-    file_needs_header = (
-        not RESULTS_PATH.exists()
-        or RESULTS_PATH.stat().st_size == 0
-    )
-
-    with RESULTS_PATH.open("a", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-
-        if file_needs_header:
-            writer.writeheader()
-
-        writer.writerow(result)
-
-
-def run_benchmark(task_count=20, delay_seconds=1, worker_count=1):
-    numbers = list(range(1, task_count + 1))
-
-    print("Submitting benchmark job...")
-    print(f"Worker count recorded: {worker_count}")
-    print(f"Task count: {task_count}")
-    print(f"Delay seconds per task: {delay_seconds}")
-
-    start_time = time.perf_counter()
-
-    submit_response = post_json(
-        f"{API_BASE_URL}/submit_slow_batch",
-        {
-            "numbers": numbers,
-            "delay_seconds": delay_seconds,
-        },
-    )
-
-    job_id = submit_response["job_id"]
-    print(f"Job ID: {job_id}")
-
-    while True:
-        status_response = get_json(f"{API_BASE_URL}/job_status/{job_id}")
-
-        completed = status_response["completed_tasks"]
-        failed = status_response["failed_tasks"]
-        total = status_response["total_tasks"]
-        percent = status_response["percent_complete"]
-        overall_status = status_response["overall_status"]
-
-        print(
-            f"Status: {overall_status} | "
-            f"Completed: {completed}/{total} | "
-            f"Failed: {failed} | "
-            f"Progress: {percent:.1f}%"
-        )
-
-        if overall_status in ["SUCCESS", "COMPLETED", "COMPLETED_WITH_FAILURES", "FAILED"]:
-            break
-
-        time.sleep(0.5)
-
-    end_time = time.perf_counter()
-    total_runtime = end_time - start_time
-    throughput = task_count / total_runtime
-
-    print("\nBenchmark complete")
-    print(f"Worker count recorded: {worker_count}")
-    print(f"Total runtime: {total_runtime:.2f} seconds")
-    print(f"Throughput: {throughput:.2f} tasks/second")
-    print(f"Final status: {overall_status}")
-
-    benchmark_result = {
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "task_count": task_count,
+def submit_slow_batch(task_count: int, delay_seconds: float) -> Dict[str, Any]:
+    payload = {
+        "numbers": list(range(1, task_count + 1)),
         "delay_seconds": delay_seconds,
-        "worker_count": worker_count,
-        "total_runtime_seconds": round(total_runtime, 2),
-        "throughput_tasks_per_second": round(throughput, 2),
-        "final_status": overall_status,
-        "completed_tasks": completed,
-        "failed_tasks": failed,
     }
 
-    save_benchmark_result(benchmark_result)
+    response = requests.post(
+        f"{API_BASE_URL}/submit_slow_batch",
+        json=payload,
+        timeout=15,
+    )
 
-    print(f"\nSaved benchmark result to {RESULTS_PATH}")
+    response.raise_for_status()
+    return response.json()
 
-    return benchmark_result
+
+def submit_matrix_batch(task_count: int, workload_size: int) -> Dict[str, Any]:
+    payload = {
+        "task_count": task_count,
+        "matrix_size": workload_size,
+    }
+
+    response = requests.post(
+        f"{API_BASE_URL}/submit_matrix_batch",
+        json=payload,
+        timeout=15,
+    )
+
+    response.raise_for_status()
+    return response.json()
 
 
-if __name__ == "__main__":
+def submit_vector_batch(task_count: int, workload_size: int) -> Dict[str, Any]:
+    payload = {
+        "task_count": task_count,
+        "vector_size": workload_size,
+    }
+
+    response = requests.post(
+        f"{API_BASE_URL}/submit_vector_batch",
+        json=payload,
+        timeout=15,
+    )
+
+    response.raise_for_status()
+    return response.json()
+
+
+def get_job_status(job_id: str) -> Dict[str, Any]:
+    response = requests.get(
+        f"{API_BASE_URL}/job_status/{job_id}",
+        timeout=15,
+    )
+
+    response.raise_for_status()
+    return response.json()
+
+
+def wait_for_job(job_id: str, poll_interval: float) -> Dict[str, Any]:
+    while True:
+        status = get_job_status(job_id)
+
+        print(
+            "Status: "
+            f"{status['status']} | "
+            f"Completed: {status['completed_tasks']}/{status['total_tasks']} | "
+            f"Failed: {status['failed_tasks']} | "
+            f"Progress: {status['progress_percent']}%"
+        )
+
+        if status["status"] in ["SUCCESS", "PARTIAL_FAILURE"]:
+            return status
+
+        time.sleep(poll_interval)
+
+
+def read_existing_fieldnames(results_file: Path) -> List[str]:
+    if not results_file.exists() or results_file.stat().st_size == 0:
+        return DEFAULT_FIELDNAMES
+
+    with results_file.open("r", newline="") as file:
+        reader = csv.reader(file)
+        header = next(reader, None)
+
+    if not header:
+        return DEFAULT_FIELDNAMES
+
+    return header
+
+
+def save_result(results_file: Path, result: Dict[str, Any]) -> None:
+    results_file.parent.mkdir(parents=True, exist_ok=True)
+
+    fieldnames = read_existing_fieldnames(results_file)
+    file_exists = results_file.exists() and results_file.stat().st_size > 0
+
+    row = {}
+
+    for field in fieldnames:
+        row[field] = result.get(field, "")
+
+    with results_file.open("a", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+        if not file_exists:
+            writer.writeheader()
+
+        writer.writerow(row)
+
+
+def submit_benchmark_job(args: argparse.Namespace) -> Dict[str, Any]:
+    if args.workload == "slow":
+        print(f"Delay seconds per task: {args.delay}")
+        return submit_slow_batch(args.tasks, args.delay)
+
+    if args.workload == "matrix":
+        print(f"Matrix size: {args.size}")
+        return submit_matrix_batch(args.tasks, args.size)
+
+    if args.workload == "vector":
+        print(f"Vector size: {args.size}")
+        return submit_vector_batch(args.tasks, args.size)
+
+    raise ValueError(f"Unsupported workload: {args.workload}")
+
+
+def get_workload_size(args: argparse.Namespace) -> Any:
+    if args.workload == "slow":
+        return args.delay
+
+    return args.size
+
+
+def run_benchmark(args: argparse.Namespace) -> None:
+    print("Submitting benchmark job...")
+    print(f"Workload: {args.workload}")
+    print(f"Worker count recorded: {args.workers}")
+    print(f"Task count: {args.tasks}")
+
+    submitted_job = submit_benchmark_job(args)
+
+    job_id = submitted_job["job_id"]
+    print(f"Job ID: {job_id}")
+
+    start_time = time.perf_counter()
+    final_status = wait_for_job(job_id, args.poll_interval)
+    end_time = time.perf_counter()
+
+    total_runtime = end_time - start_time
+    throughput = args.tasks / total_runtime if total_runtime > 0 else 0
+
+    result = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "workload": args.workload,
+        "task_count": args.tasks,
+        "delay_seconds": args.delay if args.workload == "slow" else "",
+        "workload_size": get_workload_size(args),
+        "worker_count": args.workers,
+        "total_runtime_seconds": round(total_runtime, 4),
+        "throughput_tasks_per_second": round(throughput, 4),
+        "final_status": final_status["status"],
+        "completed_tasks": final_status["completed_tasks"],
+        "failed_tasks": final_status["failed_tasks"],
+    }
+
+    save_result(args.results_file, result)
+
+    print()
+    print("Benchmark complete")
+    print(f"Workload: {args.workload}")
+    print(f"Worker count recorded: {args.workers}")
+    print(f"Total runtime: {total_runtime:.2f} seconds")
+    print(f"Throughput: {throughput:.2f} tasks/second")
+    print(f"Final status: {final_status['status']}")
+    print(f"Saved benchmark result to {args.results_file}")
+
+
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run a benchmark against the task orchestrator API."
+        description="Run a benchmark against the Distributed AI Task Orchestrator."
     )
 
     parser.add_argument(
@@ -146,22 +218,49 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--delay",
-        type=int,
-        default=1,
-        help="Delay in seconds for each slow task.",
+        type=float,
+        default=1.0,
+        help="Delay seconds per task for the slow workload.",
     )
 
     parser.add_argument(
         "--workers",
         type=int,
-        default=1,
-        help="Number of Celery worker processes/concurrency used for this benchmark.",
+        required=True,
+        help="Worker count to record for this benchmark run.",
     )
 
-    args = parser.parse_args()
-
-    run_benchmark(
-        task_count=args.tasks,
-        delay_seconds=args.delay,
-        worker_count=args.workers,
+    parser.add_argument(
+        "--workload",
+        choices=["slow", "matrix", "vector"],
+        default="slow",
+        help="Workload type to benchmark.",
     )
+
+    parser.add_argument(
+        "--size",
+        type=int,
+        default=75,
+        help="Workload size for matrix or vector workloads.",
+    )
+
+    parser.add_argument(
+        "--poll-interval",
+        type=float,
+        default=0.5,
+        help="Seconds between job status checks.",
+    )
+
+    parser.add_argument(
+        "--results-file",
+        type=Path,
+        default=DEFAULT_RESULTS_FILE,
+        help="CSV file where benchmark results are saved.",
+    )
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    benchmark_args = parse_args()
+    run_benchmark(benchmark_args)

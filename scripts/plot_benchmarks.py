@@ -1,272 +1,258 @@
-import argparse
 import csv
+from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
 
 
-DEFAULT_RESULTS_FILE = Path("benchmarks/results.csv")
-DEFAULT_OUTPUT_DIR = Path("benchmarks/graphs")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RESULTS_FILE = PROJECT_ROOT / "benchmarks" / "results.csv"
+GRAPHS_DIR = PROJECT_ROOT / "benchmarks" / "graphs"
 
 
-def load_results(csv_path: Path) -> list[dict]:
+def load_results() -> List[Dict[str, str]]:
     """
-    Load benchmark results from a CSV file.
-
-    Expected columns:
-    timestamp,
-    task_count,
-    delay_seconds,
-    worker_count,
-    total_runtime_seconds,
-    throughput_tasks_per_second,
-    final_status,
-    completed_tasks,
-    failed_tasks
-
-    Some older benchmark files may not include worker_count.
-    This script handles that gracefully.
+    Loads benchmark results from benchmarks/results.csv.
     """
-    if not csv_path.exists():
-        raise FileNotFoundError(f"Benchmark results file not found: {csv_path}")
+    if not RESULTS_FILE.exists():
+        raise FileNotFoundError(f"Could not find results file: {RESULTS_FILE}")
 
-    rows = []
-
-    with csv_path.open("r", newline="") as file:
+    with RESULTS_FILE.open("r", newline="") as file:
         reader = csv.DictReader(file)
-
-        for row in reader:
-            cleaned = {
-                "timestamp": row.get("timestamp", ""),
-                "task_count": int(float(row.get("task_count", 0) or 0)),
-                "delay_seconds": float(row.get("delay_seconds", 0) or 0),
-                "worker_count": int(float(row.get("worker_count", 0) or 0)),
-                "total_runtime_seconds": float(row.get("total_runtime_seconds", 0) or 0),
-                "throughput_tasks_per_second": float(row.get("throughput_tasks_per_second", 0) or 0),
-                "final_status": row.get("final_status", ""),
-                "completed_tasks": int(float(row.get("completed_tasks", 0) or 0)),
-                "failed_tasks": int(float(row.get("failed_tasks", 0) or 0)),
-            }
-
-            rows.append(cleaned)
-
-    return rows
+        return list(reader)
 
 
-def filter_successful_results(rows: list[dict]) -> list[dict]:
+def parse_float(value: str, default: float = 0.0) -> float:
     """
-    Keep benchmark rows that completed successfully.
-
-    The API/Celery status may report successful jobs as either
-    COMPLETED or SUCCESS depending on which part of the system
-    produced the final status.
+    Safely parses a float from CSV text.
     """
-    successful_statuses = {"COMPLETED", "SUCCESS"}
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
+
+def parse_int(value: str, default: int = 0) -> int:
+    """
+    Safely parses an integer from CSV text.
+    """
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def filter_successful_results(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """
+    Keeps only successful benchmark rows.
+    """
     return [
-        row for row in rows
-        if row["final_status"].upper() in successful_statuses
+        row
+        for row in rows
+        if row.get("final_status", "").upper() == "SUCCESS"
     ]
 
 
-def group_by_worker_count(rows: list[dict]) -> dict[int, list[dict]]:
+def group_results(rows: List[Dict[str, str]]) -> Dict[str, List[Dict[str, str]]]:
     """
-    Group benchmark rows by number of workers.
+    Groups results by workload, task count, and workload size.
+
+    This prevents slow, matrix, and vector tests from being mixed together.
     """
-    grouped = {}
+    grouped_results = defaultdict(list)
 
     for row in rows:
-        worker_count = row["worker_count"]
+        workload = row.get("workload", "unknown")
+        task_count = row.get("task_count", "unknown")
+        workload_size = row.get("workload_size", "")
 
-        if worker_count not in grouped:
-            grouped[worker_count] = []
+        if workload == "slow":
+            workload_size = row.get("delay_seconds", workload_size)
 
-        grouped[worker_count].append(row)
+        group_key = f"{workload}_tasks_{task_count}_size_{workload_size}"
+        grouped_results[group_key].append(row)
 
-    return grouped
+    return grouped_results
 
 
-def plot_runtime_by_workers(rows: list[dict], output_dir: Path) -> Path:
+def clean_group_name(group_key: str) -> str:
     """
-    Create a graph showing how total runtime changes as worker count changes.
+    Converts a group key into a safe filename piece.
     """
-    grouped = group_by_worker_count(rows)
+    return (
+        group_key
+        .replace(" ", "_")
+        .replace(".", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
 
-    worker_counts = []
-    average_runtimes = []
 
-    for worker_count in sorted(grouped.keys()):
-        worker_rows = grouped[worker_count]
-        avg_runtime = sum(row["total_runtime_seconds"] for row in worker_rows) / len(worker_rows)
+def sort_rows_by_worker_count(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """
+    Sorts rows by worker count.
+    """
+    return sorted(rows, key=lambda row: parse_int(row.get("worker_count", "0")))
 
-        worker_counts.append(worker_count)
-        average_runtimes.append(avg_runtime)
 
-    output_path = output_dir / "runtime_by_workers.png"
+def get_group_title(rows: List[Dict[str, str]]) -> str:
+    """
+    Builds a readable graph title from the first row in a result group.
+    """
+    first_row = rows[0]
 
-    plt.figure()
-    plt.plot(worker_counts, average_runtimes, marker="o")
-    plt.title("Average Runtime by Worker Count")
+    workload = first_row.get("workload", "unknown")
+    task_count = first_row.get("task_count", "unknown")
+
+    if workload == "slow":
+        delay = first_row.get("delay_seconds", "unknown")
+        return f"{workload.title()} Workload, {task_count} Tasks, {delay}s Delay"
+
+    workload_size = first_row.get("workload_size", "unknown")
+    return f"{workload.title()} Workload, {task_count} Tasks, Size {workload_size}"
+
+
+def plot_runtime(rows: List[Dict[str, str]], group_key: str) -> Path:
+    """
+    Creates a runtime versus worker count graph.
+    """
+    sorted_rows = sort_rows_by_worker_count(rows)
+
+    worker_counts = [
+        parse_int(row.get("worker_count", "0"))
+        for row in sorted_rows
+    ]
+
+    runtimes = [
+        parse_float(row.get("total_runtime_seconds", "0"))
+        for row in sorted_rows
+    ]
+
+    title = get_group_title(sorted_rows)
+    output_path = GRAPHS_DIR / f"runtime_by_workers_{clean_group_name(group_key)}.png"
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(worker_counts, runtimes, marker="o")
     plt.xlabel("Worker Count")
-    plt.ylabel("Average Runtime (seconds)")
+    plt.ylabel("Runtime Seconds")
+    plt.title(f"Runtime vs Worker Count\n{title}")
     plt.grid(True)
-    plt.savefig(output_path, bbox_inches="tight")
+    plt.xticks(worker_counts)
+    plt.tight_layout()
+    plt.savefig(output_path)
     plt.close()
 
     return output_path
 
 
-def plot_throughput_by_workers(rows: list[dict], output_dir: Path) -> Path:
+def plot_throughput(rows: List[Dict[str, str]], group_key: str) -> Path:
     """
-    Create a graph showing how throughput changes as worker count changes.
+    Creates a throughput versus worker count graph.
     """
-    grouped = group_by_worker_count(rows)
+    sorted_rows = sort_rows_by_worker_count(rows)
 
-    worker_counts = []
-    average_throughputs = []
+    worker_counts = [
+        parse_int(row.get("worker_count", "0"))
+        for row in sorted_rows
+    ]
 
-    for worker_count in sorted(grouped.keys()):
-        worker_rows = grouped[worker_count]
-        avg_throughput = (
-            sum(row["throughput_tasks_per_second"] for row in worker_rows)
-            / len(worker_rows)
-        )
+    throughputs = [
+        parse_float(row.get("throughput_tasks_per_second", "0"))
+        for row in sorted_rows
+    ]
 
-        worker_counts.append(worker_count)
-        average_throughputs.append(avg_throughput)
+    title = get_group_title(sorted_rows)
+    output_path = GRAPHS_DIR / f"throughput_by_workers_{clean_group_name(group_key)}.png"
 
-    output_path = output_dir / "throughput_by_workers.png"
-
-    plt.figure()
-    plt.plot(worker_counts, average_throughputs, marker="o")
-    plt.title("Average Throughput by Worker Count")
+    plt.figure(figsize=(10, 6))
+    plt.plot(worker_counts, throughputs, marker="o")
     plt.xlabel("Worker Count")
-    plt.ylabel("Average Throughput (tasks/second)")
+    plt.ylabel("Throughput, Tasks Per Second")
+    plt.title(f"Throughput vs Worker Count\n{title}")
     plt.grid(True)
-    plt.savefig(output_path, bbox_inches="tight")
+    plt.xticks(worker_counts)
+    plt.tight_layout()
+    plt.savefig(output_path)
     plt.close()
 
     return output_path
 
 
-def plot_speedup_by_workers(rows: list[dict], output_dir: Path) -> Path:
+def calculate_speedup(rows: List[Dict[str, str]]) -> None:
     """
-    Create a speedup graph using the average 1-worker runtime as the baseline.
-
-    Speedup = baseline_runtime / runtime_with_n_workers
+    Prints speedup information for each group.
     """
-    grouped = group_by_worker_count(rows)
+    sorted_rows = sort_rows_by_worker_count(rows)
 
-    if 1 not in grouped:
-        raise ValueError(
-            "Cannot calculate speedup because no benchmark rows exist for worker_count=1."
+    if not sorted_rows:
+        return
+
+    baseline = sorted_rows[0]
+    baseline_workers = parse_int(baseline.get("worker_count", "0"))
+    baseline_throughput = parse_float(
+        baseline.get("throughput_tasks_per_second", "0")
+    )
+
+    print()
+    print(get_group_title(sorted_rows))
+    print("-" * 60)
+
+    for row in sorted_rows:
+        workers = parse_int(row.get("worker_count", "0"))
+        runtime = parse_float(row.get("total_runtime_seconds", "0"))
+        throughput = parse_float(row.get("throughput_tasks_per_second", "0"))
+
+        if baseline_throughput > 0:
+            speedup = throughput / baseline_throughput
+        else:
+            speedup = 0.0
+
+        print(
+            f"{workers} workers: "
+            f"{runtime:.2f}s runtime, "
+            f"{throughput:.2f} tasks/sec, "
+            f"{speedup:.2f}x throughput vs {baseline_workers} worker"
         )
 
-    one_worker_rows = grouped[1]
-    baseline_runtime = (
-        sum(row["total_runtime_seconds"] for row in one_worker_rows)
-        / len(one_worker_rows)
-    )
 
-    worker_counts = []
-    speedups = []
+def main() -> None:
+    GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
 
-    for worker_count in sorted(grouped.keys()):
-        worker_rows = grouped[worker_count]
-        avg_runtime = sum(row["total_runtime_seconds"] for row in worker_rows) / len(worker_rows)
-
-        speedup = baseline_runtime / avg_runtime if avg_runtime > 0 else 0
-
-        worker_counts.append(worker_count)
-        speedups.append(speedup)
-
-    output_path = output_dir / "speedup_by_workers.png"
-
-    plt.figure()
-    plt.plot(worker_counts, speedups, marker="o")
-    plt.title("Speedup by Worker Count")
-    plt.xlabel("Worker Count")
-    plt.ylabel("Speedup Compared to 1 Worker")
-    plt.grid(True)
-    plt.savefig(output_path, bbox_inches="tight")
-    plt.close()
-
-    return output_path
-
-
-def print_summary(rows: list[dict]) -> None:
-    """
-    Print a readable summary of benchmark results.
-    """
-    grouped = group_by_worker_count(rows)
-
-    print("\nBenchmark Summary")
-    print("-----------------")
-
-    for worker_count in sorted(grouped.keys()):
-        worker_rows = grouped[worker_count]
-
-        avg_runtime = (
-            sum(row["total_runtime_seconds"] for row in worker_rows)
-            / len(worker_rows)
-        )
-
-        avg_throughput = (
-            sum(row["throughput_tasks_per_second"] for row in worker_rows)
-            / len(worker_rows)
-        )
-
-        print(f"Workers: {worker_count}")
-        print(f"  Runs: {len(worker_rows)}")
-        print(f"  Average runtime: {avg_runtime:.2f} seconds")
-        print(f"  Average throughput: {avg_throughput:.2f} tasks/second")
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate benchmark graphs from distributed task orchestrator results."
-    )
-
-    parser.add_argument(
-        "--input",
-        default=str(DEFAULT_RESULTS_FILE),
-        help="Path to benchmark CSV file."
-    )
-
-    parser.add_argument(
-        "--output-dir",
-        default=str(DEFAULT_OUTPUT_DIR),
-        help="Directory where graphs should be saved."
-    )
-
-    args = parser.parse_args()
-
-    csv_path = Path(args.input)
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    rows = load_results(csv_path)
+    rows = load_results()
     successful_rows = filter_successful_results(rows)
 
     if not successful_rows:
-        print("No completed benchmark rows found. Run benchmarks first.")
+        print("No successful benchmark rows found.")
         return
 
-    print_summary(successful_rows)
+    grouped_results = group_results(successful_rows)
 
-    generated_files = []
+    print(f"Loaded {len(rows)} total benchmark rows.")
+    print(f"Using {len(successful_rows)} successful benchmark rows.")
+    print(f"Found {len(grouped_results)} result group(s).")
 
-    generated_files.append(plot_runtime_by_workers(successful_rows, output_dir))
-    generated_files.append(plot_throughput_by_workers(successful_rows, output_dir))
+    generated_graphs = []
 
-    try:
-        generated_files.append(plot_speedup_by_workers(successful_rows, output_dir))
-    except ValueError as error:
-        print(f"\nSpeedup graph skipped: {error}")
+    for group_key, group_rows in grouped_results.items():
+        if len(group_rows) < 2:
+            print()
+            print(f"Skipping graph for {group_key} because it has fewer than 2 rows.")
+            continue
 
-    print("\nGenerated graph files:")
-    for file_path in generated_files:
-        print(f"  {file_path}")
+        runtime_graph = plot_runtime(group_rows, group_key)
+        throughput_graph = plot_throughput(group_rows, group_key)
+
+        generated_graphs.append(runtime_graph)
+        generated_graphs.append(throughput_graph)
+
+        calculate_speedup(group_rows)
+
+    print()
+    print("Generated graph files:")
+
+    for graph_path in generated_graphs:
+        print(graph_path)
 
 
 if __name__ == "__main__":
