@@ -20,7 +20,6 @@ services:
 
   worker:
     build: .
-    container_name: distributed-ai-worker
     command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-4} --hostname=docker_worker_${WORKER_CONCURRENCY:-4}@%h
     environment:
       - REDIS_URL=redis://redis:6379/0

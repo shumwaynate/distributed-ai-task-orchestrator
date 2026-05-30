@@ -32,7 +32,14 @@ cleanup_started_processes() {
 echo "Starting Distributed AI Task Orchestrator development environment..."
 echo "Worker concurrency: $WORKERS"
 
-source .venv/bin/activate
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+elif [ -f ".venv/Scripts/activate" ]; then
+    source .venv/Scripts/activate
+else
+    echo "Could not find virtual environment activation script."
+    exit 1
+fi
 
 cleanup_existing_processes
 
