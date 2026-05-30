@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+benchmarks/*.png
+benchmarks/*.csv
+benchmarks/results.csv
