@@ -2,7 +2,7 @@ import math
 import os
 import random
 import time
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 # Keep NumPy from using multiple internal threads per Celery worker process.
 # This makes worker-count scaling tests cleaner and easier to interpret.
@@ -15,6 +15,25 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 import numpy as np
 
 from app.worker.celery_app import celery_app
+from route_risk.scoring import score_route, score_segment
+
+
+# ============================================================
+# ORIGINAL ORCHESTRATOR LOGIC
+# ============================================================
+#
+# These tasks belong to the original Distributed AI Task Orchestrator.
+#
+# They are being preserved because they demonstrate:
+# - FastAPI / Redis / Celery distributed execution
+# - deterministic task processing
+# - retry behavior
+# - failure handling
+# - benchmarkable CPU workloads
+# - scaling experiments
+#
+# The Route Risk Engine pivot should build on this infrastructure instead
+# of deleting it.
 
 
 @celery_app.task
@@ -214,4 +233,116 @@ def matrix_compute_task(task_id: int, matrix_size: int = 700) -> Dict[str, float
         "matrix_size": matrix_size,
         "iterations": iterations,
         "checksum": round(checksum, 8),
+    }
+
+
+# ============================================================
+# ROUTE RISK ENGINE LOGIC
+# ============================================================
+#
+# These tasks belong to the new Route Risk / Driving Recommendation Engine
+# direction.
+#
+# Important design goal:
+# The Route Risk Engine should reuse the existing distributed orchestrator
+# infrastructure instead of replacing it.
+#
+# Current stage:
+# - Uses local/sample route data only.
+# - Does not call live APIs yet.
+# - Proves that route-risk workloads can run inside Celery workers.
+#
+# Future stages:
+# - Add live weather data.
+# - Add road-condition data.
+# - Add routing/geocoding data.
+# - Benchmark route-risk workloads across multiple worker containers.
+
+
+@celery_app.task
+def route_segment_risk_task(
+    task_id: int,
+    segment: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Score a single route segment inside a Celery worker.
+
+    This is the first Route Risk Engine workload added to the original
+    Distributed AI Task Orchestrator.
+
+    Parameters:
+        task_id:
+            Numeric ID used for tracking and benchmark consistency.
+
+        segment:
+            Dictionary containing:
+            - label
+            - weather
+            - road_condition
+            - is_night
+
+    Returns:
+        Dictionary containing:
+        - task_id
+        - workload
+        - segment_label
+        - risk_score
+        - risk_level
+        - factors
+
+    Why this matters:
+    Each route segment can be processed independently, which makes it a good
+    fit for distributed Celery workers.
+    """
+
+    segment_result = score_segment(
+        weather=segment.get("weather", {}),
+        road_condition=segment.get("road_condition", "normal"),
+        is_night=segment.get("is_night", False),
+    )
+
+    return {
+        "task_id": task_id,
+        "workload": "route_segment_risk",
+        "segment_label": segment.get("label", "Unnamed segment"),
+        "risk_score": segment_result["risk_score"],
+        "risk_level": segment_result["risk_level"],
+        "factors": segment_result["factors"],
+    }
+
+
+@celery_app.task
+def route_risk_summary_task(
+    task_id: int,
+    segments: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Score a full route inside a Celery worker.
+
+    This task is useful for early testing because it allows one worker task to
+    process a complete sample route and return a readable risk summary.
+
+    Later, we can split the route into separate segment tasks and combine the
+    results using the existing job/status/result infrastructure.
+
+    Parameters:
+        task_id:
+            Numeric ID used for tracking and benchmark consistency.
+
+        segments:
+            List of route segment dictionaries.
+
+    Returns:
+        Dictionary containing full route-risk results.
+    """
+
+    route_result = score_route(segments)
+
+    return {
+        "task_id": task_id,
+        "workload": "route_risk_summary",
+        "route_risk_score": route_result["route_risk_score"],
+        "route_risk_level": route_result["route_risk_level"],
+        "segment_results": route_result["segment_results"],
+        "summary": route_result["summary"],
     }

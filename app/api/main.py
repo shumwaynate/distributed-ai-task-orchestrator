@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import redis
@@ -11,12 +11,14 @@ from pydantic import BaseModel, Field
 from app.worker.celery_app import celery_app
 from app.worker.tasks import (
     matrix_compute_task,
+    route_segment_risk_task,
     slow_square_number,
     square_number,
     transient_unreliable_square,
     unreliable_square,
     vector_similarity_task,
 )
+from route_risk.aggregation import aggregate_job_results
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
@@ -27,10 +29,17 @@ redis_client = redis.Redis.from_url(
 
 app = FastAPI(
     title="Distributed AI Task Orchestrator",
-    description="Distributed task orchestration prototype using FastAPI, Redis, and Celery.",
-    version="0.4.0",
+    description=(
+        "Distributed task orchestration prototype using FastAPI, Redis, and Celery. "
+        "Now includes Route Risk Engine workloads."
+    ),
+    version="0.8.0",
 )
 
+
+# ============================================================
+# ORIGINAL ORCHESTRATOR REQUEST MODELS
+# ============================================================
 
 class NumberBatchRequest(BaseModel):
     numbers: List[int] = Field(..., min_length=1)
@@ -60,6 +69,35 @@ class VectorBatchRequest(BaseModel):
     task_count: int = Field(20, ge=1)
     vector_size: int = Field(1000, ge=1)
 
+
+# ============================================================
+# ROUTE RISK ENGINE REQUEST MODELS
+# ============================================================
+
+class RouteWeatherData(BaseModel):
+    temperature_f: Optional[float] = None
+    wind_mph: Optional[float] = None
+    condition: str = "clear"
+    visibility_miles: Optional[float] = None
+
+
+class RouteSegmentRequest(BaseModel):
+    label: str = "Unnamed segment"
+    weather: RouteWeatherData
+    road_condition: str = "normal"
+    is_night: bool = False
+
+
+class RouteRiskJobRequest(BaseModel):
+    route_name: str = "Sample route"
+    origin: str = "Unknown origin"
+    destination: str = "Unknown destination"
+    segments: List[RouteSegmentRequest] = Field(..., min_length=1)
+
+
+# ============================================================
+# SHARED JOB HELPERS
+# ============================================================
 
 def _job_key(job_id: str) -> str:
     return f"job:{job_id}"
@@ -118,12 +156,71 @@ def _get_task_results(task_ids: List[str]) -> List[Dict[str, Any]]:
     return results
 
 
+def _build_route_risk_summary_response(job_id: str) -> Dict[str, Any]:
+    """
+    Build a clean user-facing route-risk summary response.
+
+    This is separate from /results/{job_id}, which preserves the original
+    orchestrator-style raw task result output.
+    """
+
+    job_data = _load_job(job_id)
+    workload = job_data.get("workload", "unknown")
+
+    if workload != "route_risk_segments":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This endpoint only supports route_risk_segments jobs. "
+                f"Job workload was: {workload}"
+            ),
+        )
+
+    task_ids = json.loads(job_data["task_ids"])
+    task_results = _get_task_results(task_ids)
+    metadata = json.loads(job_data.get("metadata", "{}"))
+    aggregated_route_risk = aggregate_job_results(task_results)
+
+    incomplete_tasks = [
+        task_result
+        for task_result in task_results
+        if task_result.get("status") != "SUCCESS"
+    ]
+
+    if incomplete_tasks:
+        route_status = "INCOMPLETE"
+    else:
+        route_status = "READY"
+
+    return {
+        "job_id": job_id,
+        "route_status": route_status,
+        "route_name": metadata.get("route_name"),
+        "origin": metadata.get("origin"),
+        "destination": metadata.get("destination"),
+        "segment_count": metadata.get("segment_count"),
+        "route_risk_score": aggregated_route_risk["route_risk_score"],
+        "route_risk_level": aggregated_route_risk["route_risk_level"],
+        "highest_risk_segment": aggregated_route_risk["highest_risk_segment"],
+        "summary": aggregated_route_risk["summary"],
+    }
+
+
+# ============================================================
+# ROOT / HEALTH ENDPOINT
+# ============================================================
+
 @app.get("/")
 def root() -> Dict[str, str]:
     return {
-        "message": "Distributed AI Task Orchestrator API is running"
+        "message": "Distributed AI Task Orchestrator API is running",
+        "route_risk_status": "Route Risk Engine prototype endpoints are available",
     }
 
+
+# ============================================================
+# ORIGINAL ORCHESTRATOR ENDPOINTS
+# ============================================================
 
 @app.post("/submit_batch")
 def submit_batch(request: NumberBatchRequest) -> Dict[str, Any]:
@@ -285,6 +382,86 @@ def submit_vector_batch(request: VectorBatchRequest) -> Dict[str, Any]:
     }
 
 
+# ============================================================
+# ROUTE RISK ENGINE ENDPOINTS
+# ============================================================
+
+@app.post("/submit_route_risk_job")
+def submit_route_risk_job(request: RouteRiskJobRequest) -> Dict[str, Any]:
+    """
+    Submit a distributed Route Risk Engine job.
+
+    Current version:
+    - Accepts route segments directly.
+    - Submits one route_segment_risk_task per segment.
+    - Reuses the existing Redis job tracking system.
+    - Reuses the existing /job_status/{job_id} endpoint.
+    - Reuses the existing /results/{job_id} endpoint.
+    - Supports clean summary retrieval through /route_risk_summary/{job_id}.
+    """
+
+    task_ids = []
+    segments = [segment.model_dump() for segment in request.segments]
+
+    for index, segment in enumerate(segments, start=1):
+        task = route_segment_risk_task.delay(
+            index,
+            segment,
+        )
+        task_ids.append(task.id)
+
+    job_id = _create_job(
+        workload="route_risk_segments",
+        task_ids=task_ids,
+        metadata={
+            "route_name": request.route_name,
+            "origin": request.origin,
+            "destination": request.destination,
+            "segment_count": len(segments),
+            "prototype_stage": "manual_segments_distributed_segment_tasks",
+        },
+    )
+
+    return {
+        "message": "Distributed route risk job submitted",
+        "job_id": job_id,
+        "task_count": len(task_ids),
+        "workload": "route_risk_segments",
+        "route_name": request.route_name,
+        "origin": request.origin,
+        "destination": request.destination,
+        "segment_count": len(segments),
+        "summary_endpoint": f"/route_risk_summary/{job_id}",
+    }
+
+
+@app.get("/route_risk_summary/{job_id}")
+def route_risk_summary(job_id: str) -> Dict[str, Any]:
+    """
+    Return a clean user-facing route-risk summary.
+
+    This endpoint is intentionally simpler than /results/{job_id}.
+
+    Use this when the user/demo should see:
+    - route name
+    - origin
+    - destination
+    - total segment count
+    - route risk score
+    - route risk level
+    - highest-risk segment
+    - readable summary
+
+    Use /results/{job_id} when debugging or demonstrating raw Celery task output.
+    """
+
+    return _build_route_risk_summary_response(job_id)
+
+
+# ============================================================
+# SHARED JOB STATUS / RESULTS ENDPOINTS
+# ============================================================
+
 @app.get("/job_status/{job_id}")
 def job_status(job_id: str) -> Dict[str, Any]:
     job_data = _load_job(job_id)
@@ -345,9 +522,28 @@ def results(job_id: str) -> Dict[str, Any]:
     job_data = _load_job(job_id)
     task_ids = json.loads(job_data["task_ids"])
 
-    return {
+    task_results = _get_task_results(task_ids)
+    workload = job_data.get("workload", "unknown")
+
+    response = {
         "job_id": job_id,
-        "workload": job_data.get("workload", "unknown"),
+        "workload": workload,
         "metadata": json.loads(job_data.get("metadata", "{}")),
-        "results": _get_task_results(task_ids),
+        "results": task_results,
     }
+
+    # ============================================================
+    # ROUTE RISK ENGINE RESULT AGGREGATION
+    # ============================================================
+    #
+    # The original orchestrator returns raw task results.
+    #
+    # For route-risk jobs, we also add an aggregated route-level summary so
+    # users can see one overall risk score, highest-risk segment, and summary.
+    #
+    # Raw segment results are still preserved above in "results".
+
+    if workload == "route_risk_segments":
+        response["aggregated_route_risk"] = aggregate_job_results(task_results)
+
+    return response
