@@ -2,21 +2,22 @@ Set-Location (Join-Path $PSScriptRoot "..")
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host "ROUTE RISK COORDINATE FAN-OUT API TEST"
+Write-Host "ROUTE RISK LIVE WEATHER FAN-OUT API TEST"
 Write-Host "============================================================"
 Write-Host ""
 
 # ============================================================
-# ROUTE RISK ENGINE COORDINATE FAN-OUT API TEST
+# ROUTE RISK ENGINE LIVE WEATHER FAN-OUT API TEST
 # ============================================================
 #
 # Purpose:
-# - Submit a larger coordinate-enabled route-risk job to FastAPI.
+# - Submit a larger route-risk job to FastAPI.
 # - Use 8 route segments with latitude and longitude values.
+# - Enable live weather mode.
 # - Prove that one route request can fan out into many Celery tasks.
-# - Preserve coordinates in every route segment result.
+# - Prove each Celery task can fetch live weather from Open-Meteo.
 # - Save the returned job_id automatically.
-# - Check job status without manual copying.
+# - Poll job status until the job finishes.
 # - Fetch raw task results.
 # - Fetch the clean user-facing route-risk summary.
 #
@@ -25,6 +26,8 @@ Write-Host ""
 # - FastAPI must be running.
 # - Redis must be running.
 # - Celery worker must be running.
+# - Internet access must be available.
+# - Open-Meteo API must be reachable.
 #
 # Start the app first with:
 #
@@ -35,9 +38,10 @@ Write-Host ""
 #     .\scripts\test_route_risk_fanout_api.ps1
 
 $body = @{
-    route_name = "Rexburg to Idaho Falls Coordinate Fan-Out Test Route"
+    route_name = "Rexburg to Idaho Falls Live Weather Fan-Out Test Route"
     origin = "Rexburg, ID"
     destination = "Idaho Falls, ID"
+    use_live_weather = $true
     segments = @(
         @{
             label = "Rexburg to Thornton"
@@ -45,14 +49,14 @@ $body = @{
             longitude = -111.8118
 
             weather = @{
-                temperature_f = 26
-                wind_mph = 12
-                condition = "snow"
-                visibility_miles = 3
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "normal"
-            is_night = $true
+            is_night = $false
         },
         @{
             label = "Thornton to South Rexburg Junction"
@@ -60,14 +64,14 @@ $body = @{
             longitude = -111.8670
 
             weather = @{
-                temperature_f = 24
-                wind_mph = 18
-                condition = "snow"
-                visibility_miles = 2
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
-            road_condition = "icy"
-            is_night = $true
+            road_condition = "normal"
+            is_night = $false
         },
         @{
             label = "South Rexburg Junction to Rigby North"
@@ -75,14 +79,14 @@ $body = @{
             longitude = -111.9115
 
             weather = @{
-                temperature_f = 30
-                wind_mph = 10
-                condition = "cloudy"
-                visibility_miles = 5
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "normal"
-            is_night = $true
+            is_night = $false
         },
         @{
             label = "Rigby North to Rigby South"
@@ -90,14 +94,14 @@ $body = @{
             longitude = -111.9558
 
             weather = @{
-                temperature_f = 34
-                wind_mph = 28
-                condition = "cloudy"
-                visibility_miles = 6
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "construction"
-            is_night = $true
+            is_night = $false
         },
         @{
             label = "Rigby South to Lorenzo"
@@ -105,14 +109,14 @@ $body = @{
             longitude = -111.9815
 
             weather = @{
-                temperature_f = 32
-                wind_mph = 26
-                condition = "light snow"
-                visibility_miles = 2
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "normal"
-            is_night = $true
+            is_night = $false
         },
         @{
             label = "Lorenzo to Idaho Falls North"
@@ -120,14 +124,14 @@ $body = @{
             longitude = -112.0064
 
             weather = @{
-                temperature_f = 29
-                wind_mph = 32
-                condition = "fog"
-                visibility_miles = 1
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "normal"
-            is_night = $true
+            is_night = $false
         },
         @{
             label = "Idaho Falls North to Central Idaho Falls"
@@ -135,14 +139,14 @@ $body = @{
             longitude = -112.0298
 
             weather = @{
-                temperature_f = 36
-                wind_mph = 14
-                condition = "rain"
-                visibility_miles = 4
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "construction"
-            is_night = $true
+            is_night = $false
         },
         @{
             label = "Central Idaho Falls to Downtown Idaho Falls"
@@ -150,10 +154,10 @@ $body = @{
             longitude = -112.0408
 
             weather = @{
-                temperature_f = 38
-                wind_mph = 8
-                condition = "clear"
-                visibility_miles = 8
+                temperature_f = 0
+                wind_mph = 0
+                condition = "ignored because live weather is enabled"
+                visibility_miles = $null
             }
 
             road_condition = "normal"
@@ -162,7 +166,7 @@ $body = @{
     )
 } | ConvertTo-Json -Depth 10
 
-Write-Host "Submitting coordinate-enabled route-risk fan-out job..."
+Write-Host "Submitting live-weather route-risk fan-out job..."
 Write-Host ""
 
 try {
@@ -172,7 +176,7 @@ try {
         -ContentType "application/json" `
         -Body $body
 } catch {
-    Write-Host "ERROR: Failed to submit route-risk fan-out job."
+    Write-Host "ERROR: Failed to submit live-weather route-risk fan-out job."
     Write-Host "Make sure FastAPI is running at http://localhost:8000"
     Write-Host ""
     Write-Host $_
@@ -188,23 +192,63 @@ Write-Host ""
 Write-Host "Saved job ID automatically:"
 Write-Host $jobId
 
+# ============================================================
+# POLL JOB STATUS UNTIL COMPLETE
+# ============================================================
+#
+# Fan-out live weather jobs can take longer because each segment task calls
+# an external weather API.
+#
+# This loop waits until all tasks finish before fetching final results.
+
 Write-Host ""
-Write-Host "Checking job status..."
+Write-Host "Polling job status until complete..."
 Write-Host ""
 
-Start-Sleep -Seconds 1
+$maxAttempts = 60
+$attempt = 0
+$status = $null
 
-try {
-    $status = Invoke-RestMethod `
-        -Uri "http://localhost:8000/job_status/$jobId" `
-        -Method Get
-} catch {
-    Write-Host "ERROR: Failed to retrieve job status."
-    Write-Host $_
+while ($attempt -lt $maxAttempts) {
+    $attempt++
+
+    try {
+        $status = Invoke-RestMethod `
+            -Uri "http://localhost:8000/job_status/$jobId" `
+            -Method Get
+    } catch {
+        Write-Host "ERROR: Failed to retrieve job status."
+        Write-Host $_
+        exit 1
+    }
+
+    Write-Host "Attempt $attempt/$maxAttempts - Status: $($status.status), Progress: $($status.progress_percent)%"
+
+    if (
+        $status.status -eq "SUCCESS" -or
+        $status.status -eq "PARTIAL_FAILURE"
+    ) {
+        break
+    }
+
+    Start-Sleep -Seconds 2
+}
+
+if ($null -eq $status) {
+    Write-Host "ERROR: No job status was returned."
     exit 1
 }
 
-Write-Host "Job status:"
+if ($status.status -ne "SUCCESS" -and $status.status -ne "PARTIAL_FAILURE") {
+    Write-Host ""
+    Write-Host "ERROR: Job did not finish before timeout."
+    Write-Host "Final observed status:"
+    $status | ConvertTo-Json -Depth 10
+    exit 1
+}
+
+Write-Host ""
+Write-Host "Final job status:"
 $status | ConvertTo-Json -Depth 10
 
 Write-Host ""
@@ -222,7 +266,7 @@ try {
 }
 
 Write-Host "Raw job results:"
-$results | ConvertTo-Json -Depth 30
+$results | ConvertTo-Json -Depth 40
 
 Write-Host ""
 Write-Host "Fetching clean route-risk summary..."
@@ -239,11 +283,11 @@ try {
 }
 
 Write-Host "Clean route-risk summary:"
-$summary | ConvertTo-Json -Depth 30
+$summary | ConvertTo-Json -Depth 40
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host "COORDINATE FAN-OUT TEST SUMMARY"
+Write-Host "LIVE WEATHER FAN-OUT TEST SUMMARY"
 Write-Host "============================================================"
 Write-Host ""
 
@@ -261,6 +305,7 @@ Write-Host "Route name: $($summary.route_name)"
 Write-Host "Origin: $($summary.origin)"
 Write-Host "Destination: $($summary.destination)"
 Write-Host "Segment count: $($summary.segment_count)"
+Write-Host "Weather mode: $($summary.weather_mode)"
 Write-Host "Route risk score: $($summary.route_risk_score)"
 Write-Host "Route risk level: $($summary.route_risk_level)"
 
@@ -268,6 +313,14 @@ if ($summary.highest_risk_segment) {
     Write-Host "Highest-risk segment: $($summary.highest_risk_segment.segment_label)"
     Write-Host "Highest-risk latitude: $($summary.highest_risk_segment.latitude)"
     Write-Host "Highest-risk longitude: $($summary.highest_risk_segment.longitude)"
+
+    if ($summary.highest_risk_segment.weather) {
+        Write-Host "Highest-risk weather source: $($summary.highest_risk_segment.weather.source)"
+        Write-Host "Highest-risk weather condition: $($summary.highest_risk_segment.weather.condition)"
+        Write-Host "Highest-risk temperature F: $($summary.highest_risk_segment.weather.temperature_f)"
+        Write-Host "Highest-risk wind MPH: $($summary.highest_risk_segment.weather.wind_mph)"
+    }
+
     Write-Host "Highest-risk segment score: $($summary.highest_risk_segment.risk_score)"
     Write-Host "Highest-risk segment level: $($summary.highest_risk_segment.risk_level)"
 }
@@ -278,6 +331,6 @@ Write-Host $summary.summary
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host "END ROUTE RISK COORDINATE FAN-OUT API TEST"
+Write-Host "END ROUTE RISK LIVE WEATHER FAN-OUT API TEST"
 Write-Host "============================================================"
 Write-Host ""

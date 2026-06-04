@@ -1,12 +1,13 @@
 """
-route_risk/scoring.py
+route_risk/core/scoring.py
 
-This file contains the first route-risk scoring logic for the senior project pivot.
+Core route-risk scoring logic for the Route Risk Engine.
 
 Purpose:
 - Keep the original distributed orchestrator infrastructure intact.
-- Begin replacing the old artificial matrix workload with a real-world route risk workload.
-- Provide pure, testable scoring functions that can later be called by Celery workers.
+- Provide pure, testable scoring functions for route-risk analysis.
+- Score route segments using weather, road condition, visibility, wind,
+  temperature, and time-of-day risk.
 
 This file does NOT depend on:
 - FastAPI
@@ -15,7 +16,8 @@ This file does NOT depend on:
 - Docker
 - External APIs
 
-That is intentional. We are starting with the route-risk "brain" first.
+That is intentional. External integrations should normalize data first, then
+pass simple weather dictionaries into these core scoring functions.
 """
 
 import json
@@ -98,12 +100,34 @@ def score_segment(
     visibility_miles = weather.get("visibility_miles")
 
     # ------------------------------------------------------------
-    # Weather-based risk factors
+    # Temperature-based risk factors
     # ------------------------------------------------------------
 
-    if temperature_f is not None and temperature_f <= 32:
+    is_freezing = temperature_f is not None and temperature_f <= 32
+
+    if is_freezing:
         score += 25
         factors.append("freezing temperature")
+
+    if temperature_f is not None and temperature_f <= 15:
+        score += 15
+        factors.append("extreme cold")
+
+    # ------------------------------------------------------------
+    # Precipitation and condition-based risk factors
+    # ------------------------------------------------------------
+
+    if "thunderstorm" in condition:
+        score += 45
+        factors.append("thunderstorm")
+
+    if "severe thunderstorm" in condition:
+        score += 60
+        factors.append("severe thunderstorm")
+
+    if "hail" in condition:
+        score += 45
+        factors.append("hail")
 
     if "snow" in condition:
         score += 35
@@ -113,21 +137,79 @@ def score_segment(
         score += 40
         factors.append("icy conditions")
 
-    if "rain" in condition:
+    if "freezing rain" in condition:
+        score += 55
+        factors.append("freezing rain")
+
+    if "freezing drizzle" in condition:
+        score += 45
+        factors.append("freezing drizzle")
+
+    if "rain" in condition and "freezing rain" not in condition:
         score += 15
         factors.append("rain")
+
+    if "drizzle" in condition and "freezing drizzle" not in condition:
+        score += 10
+        factors.append("drizzle")
 
     if "fog" in condition:
         score += 25
         factors.append("fog")
 
+    if "snow" in condition and "rain" in condition:
+        score += 15
+        factors.append("mixed rain and snow")
+
+    # ------------------------------------------------------------
+    # Wind-based risk factors
+    # ------------------------------------------------------------
+
     if wind_mph is not None and wind_mph >= 25:
         score += 15
         factors.append("high wind")
 
+    if wind_mph is not None and wind_mph >= 40:
+        score += 20
+        factors.append("very high wind")
+
+    if wind_mph is not None and wind_mph >= 55:
+        score += 30
+        factors.append("extreme wind")
+
+    # ------------------------------------------------------------
+    # Visibility-based risk factors
+    # ------------------------------------------------------------
+
     if visibility_miles is not None and visibility_miles <= 2:
         score += 25
         factors.append("low visibility")
+
+    if visibility_miles is not None and visibility_miles <= 0.5:
+        score += 25
+        factors.append("very low visibility")
+
+    # ------------------------------------------------------------
+    # Compound weather risk factors
+    # ------------------------------------------------------------
+    #
+    # These are added when multiple risky conditions happen together.
+
+    if is_freezing and ("rain" in condition or "drizzle" in condition):
+        score += 25
+        factors.append("freezing precipitation risk")
+
+    if is_freezing and "fog" in condition:
+        score += 15
+        factors.append("freezing fog risk")
+
+    if is_freezing and wind_mph is not None and wind_mph >= 25:
+        score += 10
+        factors.append("cold wind risk")
+
+    if "snow" in condition and wind_mph is not None and wind_mph >= 25:
+        score += 15
+        factors.append("blowing snow risk")
 
     # ------------------------------------------------------------
     # Time-of-day risk factors
@@ -150,6 +232,14 @@ def score_segment(
     if normalized_road_condition == "icy":
         score += 35
         factors.append("reported icy road")
+
+    if normalized_road_condition == "wet":
+        score += 10
+        factors.append("reported wet road")
+
+    if normalized_road_condition == "snowy":
+        score += 25
+        factors.append("reported snowy road")
 
     if normalized_road_condition == "closed":
         score += 100
@@ -177,19 +267,6 @@ def score_route(segments: List[Dict[str, Any]]) -> Dict[str, Any]:
     - weather
     - road_condition
     - is_night
-
-    Example segment:
-        {
-            "label": "Rexburg to Rigby",
-            "weather": {
-                "temperature_f": 28,
-                "wind_mph": 18,
-                "condition": "snow",
-                "visibility_miles": 3
-            },
-            "road_condition": "normal",
-            "is_night": True
-        }
 
     Returns:
         Dictionary with:
@@ -271,9 +348,6 @@ def build_route_summary(segment_results: List[Dict[str, Any]], route_score: int)
 def print_manual_test_result(result: Dict[str, Any]) -> None:
     """
     Print manual test output in a readable JSON-style format.
-
-    This makes terminal testing much easier to read than Python's default
-    one-line dictionary output.
     """
 
     print("\n============================================================")
@@ -309,6 +383,17 @@ if __name__ == "__main__":
                 "visibility_miles": 5,
             },
             "road_condition": "construction",
+            "is_night": True,
+        },
+        {
+            "label": "Severe weather example",
+            "weather": {
+                "temperature_f": 29,
+                "wind_mph": 42,
+                "condition": "freezing rain",
+                "visibility_miles": 0.4,
+            },
+            "road_condition": "icy",
             "is_night": True,
         },
     ]

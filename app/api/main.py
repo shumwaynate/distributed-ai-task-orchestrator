@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.worker.celery_app import celery_app
 from app.worker.tasks import (
+    live_weather_route_segment_risk_task,
     matrix_compute_task,
     route_segment_risk_task,
     slow_square_number,
@@ -31,9 +32,9 @@ app = FastAPI(
     title="Distributed AI Task Orchestrator",
     description=(
         "Distributed task orchestration prototype using FastAPI, Redis, and Celery. "
-        "Now includes Route Risk Engine workloads."
+        "Now includes Route Risk Engine workloads with optional live weather."
     ),
-    version="0.9.0",
+    version="1.0.0",
 )
 
 
@@ -74,15 +75,20 @@ class VectorBatchRequest(BaseModel):
 # ROUTE RISK ENGINE REQUEST MODELS
 # ============================================================
 #
-# Route segments now support optional latitude and longitude values.
+# Route segments support optional latitude and longitude values.
 #
 # Why coordinates matter:
 # - Weather APIs usually require latitude and longitude.
 # - Routing APIs return geographic points along a route.
 # - Road-condition data can be matched to nearby route coordinates.
 #
-# Coordinates are optional during the transition so existing manual tests
-# continue to work.
+# Weather modes:
+# - use_live_weather = false:
+#     The API uses manually provided weather from the request.
+#
+# - use_live_weather = true:
+#     The API ignores the manually provided weather for scoring and instead
+#     submits live-weather Celery tasks that fetch weather from Open-Meteo.
 #
 # Validation:
 # - Latitude must be between -90 and 90.
@@ -113,7 +119,14 @@ class RouteSegmentRequest(BaseModel):
         description="Longitude of the route segment analysis point.",
     )
 
-    weather: RouteWeatherData
+    weather: RouteWeatherData = Field(
+        default_factory=RouteWeatherData,
+        description=(
+            "Manual weather data. Used when use_live_weather is false. "
+            "Ignored for scoring when use_live_weather is true."
+        ),
+    )
+
     road_condition: str = "normal"
     is_night: bool = False
 
@@ -122,6 +135,15 @@ class RouteRiskJobRequest(BaseModel):
     route_name: str = "Sample route"
     origin: str = "Unknown origin"
     destination: str = "Unknown destination"
+
+    use_live_weather: bool = Field(
+        default=False,
+        description=(
+            "If true, workers fetch live weather using latitude/longitude. "
+            "If false, workers use weather data provided in the request."
+        ),
+    )
+
     segments: List[RouteSegmentRequest] = Field(..., min_length=1)
 
 
@@ -186,6 +208,29 @@ def _get_task_results(task_ids: List[str]) -> List[Dict[str, Any]]:
     return results
 
 
+def _validate_live_weather_segments(segments: List[Dict[str, Any]]) -> None:
+    """
+    Ensure every segment has coordinates before using live weather mode.
+    """
+
+    missing_coordinate_labels = []
+
+    for segment in segments:
+        if segment.get("latitude") is None or segment.get("longitude") is None:
+            missing_coordinate_labels.append(segment.get("label", "Unnamed segment"))
+
+    if missing_coordinate_labels:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Live weather mode requires latitude and longitude for every segment."
+                ),
+                "segments_missing_coordinates": missing_coordinate_labels,
+            },
+        )
+
+
 def _build_route_risk_summary_response(job_id: str) -> Dict[str, Any]:
     """
     Build a clean user-facing route-risk summary response.
@@ -230,6 +275,7 @@ def _build_route_risk_summary_response(job_id: str) -> Dict[str, Any]:
         "destination": metadata.get("destination"),
         "segment_count": metadata.get("segment_count"),
         "coordinate_segment_count": metadata.get("coordinate_segment_count"),
+        "weather_mode": metadata.get("weather_mode"),
         "route_risk_score": aggregated_route_risk["route_risk_score"],
         "route_risk_level": aggregated_route_risk["route_risk_level"],
         "highest_risk_segment": aggregated_route_risk["highest_risk_segment"],
@@ -425,7 +471,8 @@ def submit_route_risk_job(request: RouteRiskJobRequest) -> Dict[str, Any]:
     Current version:
     - Accepts route segments directly.
     - Supports optional latitude and longitude values per segment.
-    - Submits one route_segment_risk_task per segment.
+    - Supports manual weather mode and live weather mode.
+    - Submits one route-risk task per segment.
     - Reuses the existing Redis job tracking system.
     - Reuses the existing /job_status/{job_id} endpoint.
     - Reuses the existing /results/{job_id} endpoint.
@@ -442,12 +489,24 @@ def submit_route_risk_job(request: RouteRiskJobRequest) -> Dict[str, Any]:
         and segment.get("longitude") is not None
     )
 
+    if request.use_live_weather:
+        _validate_live_weather_segments(segments)
+
     for index, segment in enumerate(segments, start=1):
-        task = route_segment_risk_task.delay(
-            index,
-            segment,
-        )
+        if request.use_live_weather:
+            task = live_weather_route_segment_risk_task.delay(
+                index,
+                segment,
+            )
+        else:
+            task = route_segment_risk_task.delay(
+                index,
+                segment,
+            )
+
         task_ids.append(task.id)
+
+    weather_mode = "live" if request.use_live_weather else "manual"
 
     job_id = _create_job(
         workload="route_risk_segments",
@@ -458,7 +517,8 @@ def submit_route_risk_job(request: RouteRiskJobRequest) -> Dict[str, Any]:
             "destination": request.destination,
             "segment_count": len(segments),
             "coordinate_segment_count": coordinate_segment_count,
-            "prototype_stage": "manual_segments_with_optional_coordinates",
+            "weather_mode": weather_mode,
+            "prototype_stage": f"{weather_mode}_weather_segments",
         },
     )
 
@@ -472,6 +532,7 @@ def submit_route_risk_job(request: RouteRiskJobRequest) -> Dict[str, Any]:
         "destination": request.destination,
         "segment_count": len(segments),
         "coordinate_segment_count": coordinate_segment_count,
+        "weather_mode": weather_mode,
         "summary_endpoint": f"/route_risk_summary/{job_id}",
     }
 
@@ -489,6 +550,7 @@ def route_risk_summary(job_id: str) -> Dict[str, Any]:
     - destination
     - total segment count
     - coordinate-enabled segment count
+    - weather mode
     - route risk score
     - route risk level
     - highest-risk segment

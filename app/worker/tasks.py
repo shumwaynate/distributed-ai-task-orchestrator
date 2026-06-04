@@ -16,6 +16,7 @@ import numpy as np
 
 from app.worker.celery_app import celery_app
 from route_risk.core.scoring import score_route, score_segment
+from route_risk.integrations.weather_client import fetch_weather_for_coordinate
 
 
 # ============================================================
@@ -208,13 +209,14 @@ def matrix_compute_task(task_id: int, matrix_size: int = 700) -> Dict[str, float
 # These tasks belong to the Route Risk / Driving Recommendation Engine.
 #
 # Current stage:
-# - Uses local or manually provided route data.
+# - Uses local/manual route data.
 # - Supports optional latitude and longitude values.
 # - Scores route segments independently.
 # - Preserves coordinates in results for future API integration.
+# - Adds first live weather worker task using Open-Meteo.
 #
 # Future stages:
-# - Use coordinates to fetch live weather data.
+# - Add FastAPI option for live weather mode.
 # - Use coordinates to match road-condition data.
 # - Use routing APIs to generate route segment points.
 # - Benchmark route-risk workloads across Docker worker containers.
@@ -226,7 +228,9 @@ def route_segment_risk_task(
     segment: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Score a single route segment inside a Celery worker.
+    Score a single route segment inside a Celery worker using provided weather.
+
+    This is the manual-weather route-risk task.
 
     Each route segment can be processed independently, making it a good fit
     for distributed Celery workers.
@@ -244,9 +248,67 @@ def route_segment_risk_task(
     return {
         "task_id": task_id,
         "workload": "route_segment_risk",
+        "weather_mode": "manual",
         "segment_label": segment.get("label", "Unnamed segment"),
         "latitude": segment.get("latitude"),
         "longitude": segment.get("longitude"),
+        "risk_score": segment_result["risk_score"],
+        "risk_level": segment_result["risk_level"],
+        "factors": segment_result["factors"],
+    }
+
+
+@celery_app.task
+def live_weather_route_segment_risk_task(
+    task_id: int,
+    segment: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Score a single route segment inside a Celery worker using live weather.
+
+    This is the first task that connects external API data into the distributed
+    route-risk worker pipeline.
+
+    Flow:
+    - Receive route segment with latitude and longitude.
+    - Fetch live weather from Open-Meteo.
+    - Normalize weather data.
+    - Score the segment using the existing scoring function.
+    - Return coordinates, weather, and risk result.
+
+    This task requires:
+    - Internet access.
+    - Valid latitude and longitude.
+    - Open-Meteo API availability.
+    """
+
+    latitude = segment.get("latitude")
+    longitude = segment.get("longitude")
+
+    if latitude is None or longitude is None:
+        raise ValueError(
+            "live_weather_route_segment_risk_task requires both latitude and longitude."
+        )
+
+    live_weather = fetch_weather_for_coordinate(
+        latitude=float(latitude),
+        longitude=float(longitude),
+    )
+
+    segment_result = score_segment(
+        weather=live_weather,
+        road_condition=segment.get("road_condition", "normal"),
+        is_night=segment.get("is_night", False),
+    )
+
+    return {
+        "task_id": task_id,
+        "workload": "route_segment_risk",
+        "weather_mode": "live",
+        "segment_label": segment.get("label", "Unnamed segment"),
+        "latitude": latitude,
+        "longitude": longitude,
+        "weather": live_weather,
         "risk_score": segment_result["risk_score"],
         "risk_level": segment_result["risk_level"],
         "factors": segment_result["factors"],
