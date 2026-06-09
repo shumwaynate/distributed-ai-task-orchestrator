@@ -165,6 +165,7 @@ def _fetch_osrm_route_response(
         "steps": "false",
         "alternatives": "false",
     }
+    
 
     url = (
         f"{OSRM_BASE_URL}{OSRM_ROUTE_PATH}/{profile}/"
@@ -205,6 +206,7 @@ def normalize_osrm_route_response(
         )
 
     routes = api_response.get("routes")
+    print(f"DEBUG: OSRM returned {len(routes) if isinstance(routes, list) else 0} route(s)")
 
     if not isinstance(routes, list) or not routes:
         raise RuntimeError("OSRM response did not include any routes.")
@@ -337,8 +339,8 @@ if __name__ == "__main__":
     origin_longitude = -111.7924
 
     # Approximate Idaho Falls, Idaho.
-    destination_latitude = 43.4927
-    destination_longitude = -112.0408
+    destination_latitude = 33.4484
+    destination_longitude = -112.0740
 
     print(
         "Fetching route from "

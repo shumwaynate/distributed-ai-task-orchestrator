@@ -75,6 +75,32 @@ def submit_vector_batch(task_count: int, workload_size: int) -> Dict[str, Any]:
     return response.json()
 
 
+def submit_route_risk_job(task_count: int) -> Dict[str, Any]:
+    payload = {
+        "route_name": "Benchmark Rexburg to Idaho Falls Route",
+        "origin_label": "Rexburg, ID",
+        "origin_latitude": 43.8231,
+        "origin_longitude": -111.7924,
+        "destination_label": "Idaho Falls, ID",
+        "destination_latitude": 43.4927,
+        "destination_longitude": -112.0408,
+        "checkpoint_count": task_count,
+        "road_condition": "normal",
+        "road_event_radius_miles": 1.0,
+        "road_events": [],
+        "is_night": False,
+    }
+
+    response = requests.post(
+        f"{API_BASE_URL}/submit_routed_route_risk_job",
+        json=payload,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+    return response.json()
+
+
 def get_job_status(job_id: str) -> Dict[str, Any]:
     response = requests.get(
         f"{API_BASE_URL}/job_status/{job_id}",
@@ -150,12 +176,19 @@ def submit_benchmark_job(args: argparse.Namespace) -> Dict[str, Any]:
         print(f"Vector size: {args.size}")
         return submit_vector_batch(args.tasks, args.size)
 
+    if args.workload == "route_risk":
+        print(f"Route-risk checkpoint count: {args.tasks}")
+        return submit_route_risk_job(args.tasks)
+
     raise ValueError(f"Unsupported workload: {args.workload}")
 
 
 def get_workload_size(args: argparse.Namespace) -> Any:
     if args.workload == "slow":
         return args.delay
+
+    if args.workload == "route_risk":
+        return args.tasks
 
     return args.size
 
@@ -206,14 +239,14 @@ def run_benchmark(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run a benchmark against the Distributed AI Task Orchestrator."
+        description="Run a benchmark against the Distributed Route Risk Engine."
     )
 
     parser.add_argument(
         "--tasks",
         type=int,
         default=20,
-        help="Number of tasks to submit.",
+        help="Number of tasks/checkpoints to submit.",
     )
 
     parser.add_argument(
@@ -232,7 +265,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--workload",
-        choices=["slow", "matrix", "vector"],
+        choices=["slow", "matrix", "vector", "route_risk"],
         default="slow",
         help="Workload type to benchmark.",
     )

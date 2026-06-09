@@ -58,7 +58,7 @@ def group_results(rows: List[Dict[str, str]]) -> Dict[str, List[Dict[str, str]]]
     """
     Groups results by workload, task count, and workload size.
 
-    This prevents slow, matrix, and vector tests from being mixed together.
+    This prevents slow, matrix, vector, and route-risk tests from being mixed together.
     """
     grouped_results = defaultdict(list)
 
@@ -108,6 +108,9 @@ def get_group_title(rows: List[Dict[str, str]]) -> str:
     if workload == "slow":
         delay = first_row.get("delay_seconds", "unknown")
         return f"{workload.title()} Workload, {task_count} Tasks, {delay}s Delay"
+
+    if workload == "route_risk":
+        return f"Route Risk Workload, {task_count} Checkpoints"
 
     workload_size = first_row.get("workload_size", "unknown")
     return f"{workload.title()} Workload, {task_count} Tasks, Size {workload_size}"
