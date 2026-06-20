@@ -1,286 +1,484 @@
-﻿# PROJECT HANDOFF - Route Risk Engine
+# PROJECT HANDOFF — Distributed Route Risk Engine
 
-Date created: 2026-06-04
+**Originally created:** 2026-06-04
+**Last updated:** 2026-06-19
 
-Project folder:
-distributed-ai-task-orchestrator
+## Project folder
 
-Purpose:
-This project started as a Distributed AI Task Orchestrator using FastAPI, Redis, Celery, and worker tasks. It has now pivoted into a Route Risk Engine / Driving Recommendation prototype that still uses the distributed task architecture. The current system generates routes, samples checkpoints, fetches live weather, matches road events, scores each segment, and aggregates the route into a user-facing recommendation.
+`distributed-ai-task-orchestrator`
 
-Current high-level flow:
-1. User submits origin and destination coordinates.
-2. FastAPI calls OSRM to generate a driving route.
+## Project purpose
+
+This senior project began as a Distributed AI Task Orchestrator using FastAPI, Redis, Celery, Docker Compose, and configurable worker scaling.
+
+The project has since evolved into a Distributed Route Risk Engine. The original distributed architecture is now used to process real route-analysis workloads instead of artificial matrix, vector, square-number, or delayed benchmark tasks.
+
+The system can generate driving-route alternatives, sample route checkpoints, fetch live weather, load roadway events, distribute checkpoint analysis across Celery workers, calculate route-risk summaries, and compare route alternatives.
+
+## Current high-level flow
+
+1. A user submits origin and destination coordinates.
+2. FastAPI requests one or more routes from the configured routing provider.
 3. Route geometry is sampled into checkpoints.
-4. Optional road events are matched to nearby checkpoints.
-5. Each checkpoint becomes a Celery task.
-6. Celery workers fetch live weather from Open-Meteo.
-7. Each checkpoint is scored using route-risk logic.
-8. Results are aggregated into a route-level summary.
-9. Road closures now block the route instead of being averaged down.
+4. Live state roadway events and optional manually supplied events are loaded.
+5. Road events are matched to route checkpoints.
+6. Each checkpoint becomes an independent Celery task.
+7. Celery workers fetch live weather from Open-Meteo.
+8. Each checkpoint is scored using weather, road conditions, road events, and nighttime information.
+9. Redis stores job metadata and Celery task identifiers.
+10. Completed checkpoint results are aggregated into route-level summaries.
+11. Multi-route jobs compare the alternatives and select a recommended route.
+12. Road closures can mark a route as blocked instead of allowing the closure to be averaged down.
 
-Important current behavior:
-- A normal route with clear weather can return Low risk.
-- Construction near a checkpoint increases that checkpoint risk.
-- A road closure near any checkpoint now escalates the route to:
-  - route_risk_score: 100
-  - route_risk_level: Blocked
-  - route_blocked: true
-  - route_warning explaining rerouting is needed
-- The clean summary endpoint now exposes blocking route information.
+## Current API endpoints
 
-Current working API endpoints:
-- GET /
-- POST /submit_route_risk_job
-- POST /submit_routed_route_risk_job
-- GET /job_status/{job_id}
-- GET /results/{job_id}
-- GET /route_risk_summary/{job_id}
+* `GET /`
+* `POST /submit_routed_route_risk_job`
+* `POST /submit_route_comparison_job`
+* `GET /job_status/{job_id}`
+* `GET /results/{job_id}`
+* `GET /route_risk_summary/{job_id}`
+* `GET /route_comparison_summary/{job_id}`
 
-Most important active files:
+The old `POST /submit_route_risk_job` endpoint has been removed.
 
-app/api/main.py
-- Main FastAPI app.
-- Contains original orchestrator endpoints.
-- Contains direct route-risk segment endpoint.
-- Contains routed route-risk endpoint.
-- Accepts origin/destination coordinates.
-- Calls OSRM route generation.
-- Applies road-event matching.
-- Submits live-weather Celery tasks.
-- Builds clean route-risk summaries.
-- Clean summary now includes:
-  - route_blocked
-  - route_warning
-  - average_segment_score
-  - blocking_segments
-  - blocking_segment_count
-  - incomplete_task_count
+## Current API organization
 
-app/worker/tasks.py
-- Celery task definitions.
-- Preserves original orchestrator tasks:
-  - square_number
-  - slow_square_number
-  - unreliable_square
-  - transient_unreliable_square
-  - matrix_compute_task
-  - vector_similarity_task
-- Route-risk tasks:
-  - route_segment_risk_task
-  - live_weather_route_segment_risk_task
-  - route_risk_summary_task
-- Live weather task fetches Open-Meteo data.
-- Route-risk task output now preserves road context:
-  - road_condition
-  - road_condition_source
-  - matched_road_event
-  - nearby_road_event_count
+### `app/api/main.py`
 
-route_risk/core/scoring.py
-- Core segment and route scoring logic.
-- Does not call APIs.
-- Handles weather, wind, visibility, road condition, and night scoring.
-- Important road conditions:
-  - normal
-  - construction
-  - wet
-  - snowy
-  - icy
-  - closed
-- closed adds road closure factor and scores the segment as 100.
+The FastAPI entry point is intentionally small.
 
-route_risk/core/aggregation.py
-- Aggregates completed segment results.
-- Calculates average segment score.
-- Finds highest-risk segment.
-- Detects blocking segments.
-- If any segment has road_condition = closed or factor = road closure:
-  - route_risk_score becomes 100
-  - route_risk_level becomes Blocked
-  - route_blocked becomes true
-  - route_warning is added
-  - average_segment_score is preserved for explanation
+It:
 
-route_risk/integrations/weather_client.py
-- Open-Meteo live weather integration.
-- Fetches weather by latitude/longitude.
-- Normalizes weather into:
-  - temperature_f
-  - wind_mph
-  - condition
-  - visibility_miles
-  - source
-  - raw_weather_code
+* creates the FastAPI application;
+* registers the route and job routers;
+* exposes the root health endpoint.
 
-route_risk/integrations/routing_client.py
-- OSRM routing integration.
-- Fetches route from origin coordinate to destination coordinate.
-- Uses OSRM public route API.
-- Returns:
-  - distance_meters
-  - duration_seconds
-  - full geometry coordinates
-  - sampled checkpoints
+Business logic is no longer concentrated inside this file.
 
-route_risk/integrations/road_conditions_client.py
-- Road-event matching layer.
-- Takes route checkpoints and road event dictionaries.
-- Uses haversine distance to match nearby events.
-- Normalizes event types into scoring-friendly road conditions.
-- Supports:
-  - construction
-  - work zone
-  - maintenance
-  - restriction
-  - road closure
-  - icy
-  - snowy
-  - wet
-- Applies most serious nearby event to each checkpoint.
+### `app/api/models.py`
 
-route_risk/integrations/road_event_feed_client.py
-- WZDx-style / GeoJSON road-event feed normalizer.
-- Can fetch JSON from a URL.
-- Can normalize WZDx-style FeatureCollection data into road events.
-- Current manual test uses sample WZDx-like data.
-- Future next step: add real WZDx feed URL support in the FastAPI endpoint.
+Contains current Pydantic request models, including:
 
-Important scripts:
+* `RoadEventRequest`
+* `RoutedRouteRiskJobRequest`
+* `RouteComparisonJobRequest`
 
-scripts/start_dev.ps1
-- Starts the development environment.
-- Checks Redis.
-- Starts Redis through Docker if needed.
-- Starts FastAPI.
-- Starts Celery worker.
-- On Windows uses Celery solo pool for local stability.
+### `app/api/job_store.py`
 
-scripts/test_routed_route_risk_api.ps1
-- Main current demo/test script.
-- Submits Rexburg to Idaho Falls coordinates.
-- Sends demo road events:
-  - construction near checkpoint 5
-  - road closure near checkpoint 6
-- Polls until job completion.
-- Fetches raw results.
-- Fetches clean route-risk summary.
-- Prints route blocked fields.
+Contains Redis-backed job storage and status helpers, including:
 
-scripts/test_custom_routed_route_risk_api.ps1
-- Flexible playground script.
-- Lets user quickly edit:
-  - origin coordinates
-  - destination coordinates
-  - checkpoint count
-  - fallback road condition
-  - road event radius
-  - optional road events
-  - is_night
-- Useful for testing any two routable coordinates.
+* creating a job record;
+* loading a job record;
+* retrieving Celery task results;
+* building the public job-status response.
 
-Other test files that may still exist:
+### `app/api/routers/routes.py`
 
-route_risk/testing/manual_test.py
-- Early manual scoring tests.
-- Useful for checking core scoring still works.
+Contains route submission and summary endpoints:
 
-route_risk/testing/manual_celery_task_test.py
-- Direct Celery task logic test.
-- Does not require Redis/Celery worker because it calls task logic directly.
+* single routed route-risk submission;
+* multi-route comparison submission;
+* single-route summary;
+* route-comparison summary.
 
-route_risk/testing/manual_live_weather_scoring_test.py
-- Tests live weather fetch plus local scoring.
+### `app/api/routers/jobs.py`
 
-route_risk/testing/manual_live_weather_celery_task_test.py
-- Tests live weather Celery task logic directly.
+Contains general job endpoints:
 
-route_risk/testing/manual_routed_live_weather_test.py
-- Important current local integration test.
-- Current version should prove:
-  - OSRM route generation
-  - WZDx-style feed normalization
-  - road-event matching
-  - live weather
-  - route aggregation
-  - blocked route behavior
+* job status;
+* raw task results.
 
-scripts/test_route_risk_api.ps1
-- Earlier API test for direct route-risk segments.
-- Still useful but less central than the routed endpoint.
+### `app/api/services/route_jobs.py`
 
-scripts/test_route_risk_fanout_api.ps1
-- Earlier live-weather fan-out test.
-- Useful to demonstrate multi-segment Celery fan-out.
-- May become less central now that routed endpoint exists.
+Contains route-job orchestration logic:
 
-Recommended file cleanup later:
-Do not delete tests blindly yet. Later, consider creating:
-route_risk/testing/archive/
+* building route segments from checkpoints;
+* loading live state roadway events;
+* separating active and upcoming events;
+* submitting single-route distributed jobs;
+* submitting multi-route comparison jobs.
 
-Possible archive candidates:
-- older scoring-only experiments
-- old fanout-only scripts
-- duplicate route-risk API scripts that are replaced by routed API tests
+### `app/api/services/route_summaries.py`
 
-Current recommended commit message:
-Add road event matching, WZDx normalization, and blocked route summaries
+Contains summary and recommendation logic:
 
-Current best next technical step:
-Add road_event_feed_url support to POST /submit_routed_route_risk_job.
+* building single-route summaries;
+* building comparison summaries;
+* combining upcoming-event disclosures;
+* choosing the recommended route.
 
-Goal of next step:
-Allow API request to include:
-road_event_feed_url: "https://some-wzdx-feed-url"
+## Celery worker tasks
 
-Then FastAPI should:
-1. Fetch WZDx-style feed.
-2. Normalize feed features into road events.
-3. Combine feed events with manually supplied road_events.
-4. Match all events to route checkpoints.
-5. Score the route.
-6. Return route_blocked if closure is found.
+### `app/worker/tasks.py`
 
-Important note:
-Do not try to support all lower-48 road feeds at once. Build provider architecture first. WZDx is the preferred direction because it is designed for work-zone data. Some feeds may require keys, and some states may not have good public coverage.
+The worker file now contains only Route Risk Engine tasks:
 
-Latest successful test result:
-The routed API test with two road events completed successfully. It returned:
-- route_status: READY
-- route_risk_score: 100
-- route_risk_level: Blocked
-- route_blocked: True
-- average_segment_score: 14
-- blocking_segment_count: 1
-- highest-risk segment: Route checkpoint 6
-- highest-risk road condition: closed
-- matched closure event: Demo closure near north Idaho Falls
-- summary stated the route is blocked and should not be recommended without rerouting.
+* `route_segment_risk_task`
+* `live_weather_route_segment_risk_task`
+* `route_risk_summary_task`
 
-Commands to run project:
+The following legacy tasks were removed:
 
-Start development environment:
-.\scripts\start_dev.ps1
+* `square_number`
+* `slow_square_number`
+* `unreliable_square`
+* `transient_unreliable_square`
+* `matrix_compute_task`
+* `vector_similarity_task`
 
-Run main routed API demo:
-.\scripts\test_routed_route_risk_api.ps1
+NumPy is no longer required by the worker task file.
 
-Run custom coordinate playground:
-.\scripts\test_custom_routed_route_risk_api.ps1
+## Route Risk Engine domain logic
 
-Run routed local WZDx-style/manual integration test:
-python -m route_risk.testing.manual_routed_live_weather_test
+### `route_risk/core/scoring.py`
 
-Run core aggregation test:
-python -m route_risk.core.aggregation
+Contains local route-segment scoring rules.
 
-Run road event feed normalizer test:
-python -m route_risk.integrations.road_event_feed_client
+It evaluates factors such as:
 
-Run road condition matcher test:
-python -m route_risk.integrations.road_conditions_client
+* temperature;
+* wind;
+* visibility;
+* weather condition;
+* road condition;
+* nighttime travel;
+* construction;
+* snow or ice;
+* road closure.
 
-How to use this file in the next chat:
-Upload this file to the project files and say:
-"Read PROJECT_HANDOFF_ROUTE_RISK_ENGINE.md first. Use it as the source of truth before helping me continue."
+### `route_risk/core/aggregation.py`
 
+Aggregates completed checkpoint results.
+
+It:
+
+* calculates the average segment score;
+* identifies the highest-risk segment;
+* detects blocking segments;
+* marks routes as blocked when an applicable closure is present;
+* preserves the average score for explanation even when the final route status is blocked.
+
+### `route_risk/integrations/weather_client.py`
+
+Fetches and normalizes live Open-Meteo weather.
+
+Normalized weather information includes:
+
+* temperature in Fahrenheit;
+* wind speed in miles per hour;
+* weather condition;
+* visibility;
+* source;
+* raw weather code.
+
+### Routing integrations
+
+The project uses a configurable routing provider to generate driving routes and route alternatives.
+
+Routing results include:
+
+* distance;
+* duration;
+* route geometry;
+* sampled checkpoints;
+* route identity for multi-route comparison.
+
+### `route_risk/integrations/road_conditions_client.py`
+
+Matches roadway events to route checkpoints and converts event types into scoring-friendly road conditions.
+
+Current supported concepts include:
+
+* construction;
+* maintenance;
+* work zones;
+* restrictions;
+* closures;
+* wet roads;
+* snow;
+* ice.
+
+### State 511 integrations
+
+The project includes a provider-oriented state-event loading structure.
+
+Current implementation includes Nevada 511 roadway events.
+
+Relevant capabilities include:
+
+* fetching Nevada 511 event data;
+* normalizing event fields;
+* preserving event timing and recurrence information;
+* classifying events as active, upcoming, future, expired, or unknown;
+* scoring active events;
+* disclosing upcoming events separately.
+
+## Current route-comparison behavior
+
+A route-comparison request can generate multiple route alternatives.
+
+Each alternative:
+
+* receives a route identifier and label;
+* is sampled into checkpoints;
+* fans out into independent Celery tasks;
+* receives a route-risk summary;
+* is included in the final comparison response.
+
+The comparison summary can select a recommended route based on route safety and blocking conditions.
+
+## Current blocking-route behavior
+
+If an applicable closure matches a route:
+
+* the route may receive `route_risk_score: 100`;
+* the route risk level may become `Blocked`;
+* `route_blocked` becomes `true`;
+* blocking segments are listed;
+* the route warning explains that rerouting is required.
+
+A closure should not be averaged down by otherwise safe route checkpoints.
+
+## Scaling experiment system
+
+The scaling system now benchmarks only the real Route Risk Engine workload.
+
+It no longer submits artificial slow, matrix, or vector workloads.
+
+### `scripts/benchmark.py`
+
+Submits a real routed route-risk job and records:
+
+* timestamp;
+* workload;
+* task count;
+* worker count;
+* total runtime;
+* throughput;
+* final status;
+* completed task count;
+* failed task count.
+
+Results are appended to:
+
+`benchmarks/results.csv`
+
+Historical matrix, vector, and slow-workload rows remain compatible with the existing CSV.
+
+### `scripts/run_scaling_experiment.ps1`
+
+Windows scaling script.
+
+It:
+
+* accepts worker counts as positional arguments;
+* starts Redis and FastAPI through Docker Compose;
+* scales Celery worker containers;
+* runs one real route-risk workload for each worker count;
+* records runtime and throughput;
+* appends results to the benchmark CSV;
+* prints a final summary table.
+
+Example:
+
+`$env:TASKS = "20"`
+`.\scripts\run_scaling_experiment.ps1 1 2 4 8`
+
+### `scripts/run_scaling_experiment.sh`
+
+macOS/Linux scaling counterpart.
+
+Example:
+
+`TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4 8`
+
+The Bash script has not been syntax-tested in the current Windows environment because WSL Bash is not installed.
+
+### `scripts/plot_benchmarks.py`
+
+Generates route-risk scaling graphs by default:
+
+* runtime versus workers;
+* throughput versus workers;
+* measured speedup versus workers.
+
+Historical workloads can still be graphed with:
+
+`python .\scripts\plot_benchmarks.py --include-historical`
+
+Existing historical benchmark results and graphs should be retained as evidence of iterative project development.
+
+## Local development scripts
+
+### `scripts/start_dev.ps1`
+
+Starts the Windows local-development environment.
+
+It:
+
+* activates the virtual environment;
+* checks Redis;
+* starts Redis through Docker if necessary;
+* starts FastAPI;
+* starts a Celery worker.
+
+Windows local development uses Celery’s solo pool for stability.
+
+This is appropriate for functional testing but not for measuring multi-worker scaling.
+
+### `scripts/start_dev.sh`
+
+Provides the macOS/Linux local-development counterpart.
+
+## Retained primary API test
+
+### `scripts/test_routed_route_risk_api.ps1`
+
+This is the main retained routed API test.
+
+It:
+
+* submits origin and destination coordinates;
+* uses the current routed endpoint;
+* includes predictable supplemental manual roadway events;
+* polls the distributed job;
+* fetches raw results;
+* fetches the route-risk summary;
+* prints route blocking and risk information.
+
+The following duplicate or obsolete PowerShell tests were removed:
+
+* `scripts/test_custom_routed_route_risk_api.ps1`
+* `scripts/test_route_risk_api.ps1`
+* `scripts/test_route_risk_fanout_api.ps1`
+
+## Remaining accuracy improvements
+
+The next technical work should focus on roadway-event accuracy rather than adding more legacy infrastructure.
+
+### 1. Nightly and overnight closure windows
+
+Some Nevada events are marked as broadly active by structured recurrence data even when their description says the closure only applies during nighttime hours.
+
+Examples include descriptions such as:
+
+* nightly 8 PM to 5 AM;
+* nightly 8 PM to 6 AM.
+
+The system should parse these descriptions and apply the closure only during the applicable time window.
+
+### 2. Preserve provider event metadata
+
+Nevada event metadata should remain available after roadway matching.
+
+Useful information includes:
+
+* roadway name;
+* direction;
+* ramp information;
+* recurrence;
+* start and end times;
+* provider identifier;
+* event geometry.
+
+### 3. Roadway, direction, and ramp applicability
+
+A nearby event should not automatically affect a route if it applies to:
+
+* the opposite direction;
+* a different roadway;
+* a ramp the route does not use;
+* a nearby parallel road.
+
+### 4. Improve route-to-event geometry matching
+
+The current matching process relies heavily on sampled route checkpoints.
+
+Accuracy can be improved by comparing:
+
+* full route geometry;
+* event point geometry;
+* event line or polyline geometry;
+* roadway names;
+* route direction.
+
+### 5. All routes blocked behavior
+
+When every generated route alternative is blocked, the system should not present one as a normal safe recommendation.
+
+The comparison response should instead return either:
+
+* no safe route recommendation; or
+* a clearly labeled least-bad alternative.
+
+## Refactor and cleanup status
+
+Completed:
+
+* split the large FastAPI file into routers, services, models, and job storage;
+* removed the obsolete number-batch Pydantic model;
+* removed generated Python cache files from Git tracking;
+* removed `.DS_Store` files;
+* removed temporary pasted-code and response files;
+* removed legacy worker tasks;
+* simplified scaling to the real route-risk workload;
+* removed obsolete duplicate API test scripts;
+* updated Windows and macOS/Linux startup and scaling scripts;
+* completed the full project compile check;
+* completed Docker Compose configuration validation;
+* verified FastAPI route registration;
+* completed the end-to-end routed job test;
+* completed the multi-route comparison test;
+* completed the route-risk worker-scaling experiment;
+* generated runtime, throughput, and speedup graphs;
+* completed Git whitespace, secret-file, temporary-file, obsolete-reference, and hard-coded-path reviews.
+
+### Final route-risk scaling verification
+
+The final benchmark used 16 real route-risk checkpoint tasks.
+
+| Workers | Runtime (seconds) | Throughput (tasks/second) | Measured speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 14.67 | 1.09 | 1.00x |
+| 2 | 7.91 | 2.02 | 1.85x |
+| 4 | 5.33 | 3.00 | 2.75x |
+
+The 1-to-4-worker run reduced runtime from 14.67 seconds to 5.33 seconds and achieved approximately 2.75x measured speedup. The final Route Risk Engine workload therefore satisfies the project requirement to demonstrate greater than two-times scaling.
+
+## Important commands
+
+### Start Windows local development
+
+`.\scripts\start_dev.ps1`
+
+### Run the retained routed API test
+
+`.\scripts\test_routed_route_risk_api.ps1`
+
+### Run Windows worker scaling
+
+`$env:TASKS = "20"`
+`.\scripts\run_scaling_experiment.ps1 1 2 4 8`
+
+### Generate current Route Risk Engine graphs
+
+`python .\scripts\plot_benchmarks.py`
+
+### Include historical benchmark workloads
+
+`python .\scripts\plot_benchmarks.py --include-historical`
+
+## Current project status
+
+The Route Risk Engine refactor, repository cleanup, functional verification, and scaling validation are complete.
+
+The repository is ready for its final commit. Future development should focus on the route-event accuracy improvements documented above, including stronger geometry matching, roadway-direction handling, metadata preservation, and explicit behavior when every route is blocked.
+
+## How to use this file later
+
+Use this file as a project handoff and current-state reference.
+
+Before continuing development in a new conversation, provide this document and state:
+
+“Read `PROJECT_HANDOFF_ROUTE_RISK_ENGINE.md` first and use it as the current project source of truth.”

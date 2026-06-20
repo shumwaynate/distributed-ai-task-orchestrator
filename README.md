@@ -1,82 +1,191 @@
-# Distributed AI Task Orchestrator
+# Distributed Route Risk Engine
 
 ## Overview
 
-Distributed AI Task Orchestrator is a senior project prototype that demonstrates distributed task execution, progress tracking, reliability handling, retry behavior, and performance scaling using Python, FastAPI, Celery, and Redis.
+The Distributed Route Risk Engine is a senior project backend application that uses distributed task processing to analyze and compare driving routes.
 
-The system accepts batches of AI-style computational tasks, places them into a Redis-backed task queue, processes them asynchronously using Celery workers, tracks job progress, records benchmark results, and generates graphs for performance analysis.
+A route request is generated through a routing provider, divided into geographic checkpoints, and processed across Celery workers. Each checkpoint can be evaluated using live weather, roadway conditions, construction, closures, and other route-risk factors. The completed checkpoint results are aggregated into a route-level summary and recommendation.
 
-The main purpose of this project is to demonstrate distributed systems engineering, backend API design, asynchronous task processing, functional task execution, reliability handling, and quantitative scalability analysis.
+The project began as a general Distributed AI Task Orchestrator. The FastAPI, Redis, Celery, Docker Compose, job tracking, benchmarking, and worker-scaling architecture was preserved and adapted to a practical transportation-related workload.
 
-## Project Goals
+## Core Capabilities
 
-This project is designed to show that a batch of computational work can be:
+The current system supports:
 
-- Submitted through an API
-- Split into individual tasks
-- Distributed to worker processes
-- Executed asynchronously
-- Tracked through a job status endpoint
-- Measured using benchmark scripts
-- Compared across different worker counts
-- Analyzed using benchmark graphs
-- Tested for permanent failure handling
-- Tested for transient failure retry behavior
+* Generating a route from origin and destination coordinates
+* Generating multiple route alternatives for comparison
+* Sampling route geometry into checkpoints
+* Distributing checkpoint analysis across Celery workers
+* Fetching live weather from Open-Meteo
+* Loading state 511 roadway events
+* Matching road events to nearby route checkpoints
+* Scoring weather, road conditions, construction, snow, ice, and closures
+* Detecting blocked routes
+* Aggregating checkpoint results into route summaries
+* Comparing route alternatives
+* Recommending a safer available route
+* Tracking job progress through Redis
+* Measuring runtime, throughput, and worker scaling
+* Saving benchmark results to CSV
+* Generating runtime, throughput, and speedup graphs
 
-The project is intentionally controlled and measurable so that scaling and reliability behavior can be tested and explained clearly.
+## Technology Stack
 
-## Current Status
-
-The current prototype supports:
-
-- FastAPI backend service
-- Redis task queue
-- Celery worker execution
-- Batch task submission
-- Slow task workload for baseline scaling
-- Matrix compute workload for AI-style numerical benchmarking
-- Vector similarity workload for AI-style vector comparison
-- Permanent failure testing
-- Transient failure retry testing
-- Job status tracking
-- Completed and failed task counts
-- Retry tracking during job status checks
-- Benchmark logging to CSV
-- Automated scaling experiments
-- Benchmark graph generation
-
-## Tech Stack
-
-- Python
-- FastAPI
-- Celery
-- Redis
-- NumPy
-- Matplotlib
-- Bash scripting
-- CSV-based benchmark logging
-- Docker support planned for continued integration work
+* Python
+* FastAPI
+* Celery
+* Redis
+* Docker Compose
+* Pydantic
+* Requests
+* Matplotlib
+* Open-Meteo
+* Configurable routing provider
+* State 511 roadway-event data
+* PowerShell and Bash scripts
 
 ## High-Level Architecture
 
 ```text
-User or Benchmark Script
-        |
-        v
-FastAPI API
-        |
-        v
-Redis Queue
-        |
-        v
-Celery Workers
-        |
-        v
-Task Results and Job Status
-        |
-        v
-Benchmark Results and Graphs
-````
+User, Demo Script, or Benchmark Script
+                |
+                v
+            FastAPI API
+                |
+                v
+       Routing Provider
+                |
+                v
+    Route Geometry and Checkpoints
+                |
+                v
+          Redis Task Queue
+                |
+                v
+          Celery Workers
+                |
+                v
+ Weather and Road-Event Analysis
+                |
+                v
+       Checkpoint Risk Scores
+                |
+                v
+ Route Summary and Recommendation
+```
+
+## Request Workflow
+
+1. The user submits origin and destination coordinates.
+2. FastAPI validates the request.
+3. The routing provider generates one or more routes.
+4. Route geometry is sampled into checkpoints.
+5. Active state roadway events and optional manual events are loaded.
+6. Road events are matched to route checkpoints.
+7. Each checkpoint is submitted as an independent Celery task.
+8. Workers fetch live weather and score checkpoint risk.
+9. Redis and Celery track task progress and results.
+10. Completed checkpoint results are aggregated.
+11. The API returns a route-risk summary or route comparison.
+12. Benchmark scripts can repeat the workload with different worker counts.
+
+## API Endpoints
+
+### Health Check
+
+```text
+GET /
+```
+
+Confirms that the Route Risk Engine API is running.
+
+### Submit a Routed Route-Risk Job
+
+```text
+POST /submit_routed_route_risk_job
+```
+
+Generates and evaluates one route.
+
+The request can include:
+
+* Origin and destination labels
+* Origin and destination coordinates
+* Route checkpoint count
+* Fallback road condition
+* Road-event matching radius
+* Optional manual road events
+* Nighttime scoring
+* State-event settings when enabled
+
+### Submit a Route Comparison Job
+
+```text
+POST /submit_route_comparison_job
+```
+
+Generates and evaluates multiple candidate routes.
+
+Each route receives:
+
+* Route identity
+* Distance and duration
+* Checkpoint results
+* Route risk score
+* Route risk level
+* Blocking information
+* Recommendation eligibility
+
+### Check Job Status
+
+```text
+GET /job_status/{job_id}
+```
+
+Returns distributed-job progress, including:
+
+* Overall status
+* Total task count
+* Completed task count
+* Failed task count
+* Pending task count
+* Running task count
+* Progress percentage
+* Job metadata
+
+### Get Raw Results
+
+```text
+GET /results/{job_id}
+```
+
+Returns raw Celery task results for a job.
+
+### Get a Single-Route Summary
+
+```text
+GET /route_risk_summary/{job_id}
+```
+
+Returns a clean route-level summary, including:
+
+* Route status
+* Route distance and duration
+* Risk score
+* Risk level
+* Average checkpoint score
+* Highest-risk checkpoint
+* Blocking segments
+* Route warning
+* Summary explanation
+
+### Get a Route-Comparison Summary
+
+```text
+GET /route_comparison_summary/{job_id}
+```
+
+Returns evaluated route alternatives and the recommended route when an acceptable option is available.
 
 ## Project Structure
 
@@ -85,641 +194,295 @@ distributed-ai-task-orchestrator/
 |
 ├── app/
 |   ├── api/
-|   |   └── main.py
+|   |   ├── main.py
+|   |   ├── models.py
+|   |   ├── job_store.py
+|   |   ├── routers/
+|   |   |   ├── jobs.py
+|   |   |   └── routes.py
+|   |   └── services/
+|   |       ├── route_jobs.py
+|   |       └── route_summaries.py
+|   |
 |   ├── core/
-|   |   └── models.py
+|   |   └── config.py
+|   |
 |   └── worker/
 |       ├── celery_app.py
 |       └── tasks.py
 |
-├── benchmarks/
-|   ├── results.csv
-|   ├── results_archive_calibration_runs.csv
-|   └── graphs/
-|       ├── runtime_by_workers_matrix_tasks_20_size_700.png
-|       └── throughput_by_workers_matrix_tasks_20_size_700.png
+├── route_risk/
+|   ├── core/
+|   |   ├── scoring.py
+|   |   └── aggregation.py
+|   |
+|   ├── integrations/
+|   |   ├── weather_client.py
+|   |   ├── routing_client.py
+|   |   ├── road_conditions_client.py
+|   |   └── state_511_clients/
+|   |
+|   └── testing/
 |
 ├── scripts/
 |   ├── benchmark.py
 |   ├── plot_benchmarks.py
+|   ├── run_scaling_experiment.ps1
 |   ├── run_scaling_experiment.sh
-|   └── start_dev.sh
+|   ├── start_dev.ps1
+|   ├── start_dev.sh
+|   └── test_routed_route_risk_api.ps1
 |
-├── README.md
-└── requirements.txt
+├── benchmarks/
+|   ├── results.csv
+|   └── graphs/
+|
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
 ```
 
-## Workload Types
+## Worker Tasks
 
-The system currently supports five workload types.
+The current worker file contains only Route Risk Engine tasks:
 
-### Standard Square Workload
+* `route_segment_risk_task`
+* `live_weather_route_segment_risk_task`
+* `route_risk_summary_task`
 
-The standard square workload is used for simple API testing.
+The old square-number, artificial-delay, retry-test, matrix, and vector worker tasks were removed from the active application.
 
-Each task:
+## Route Scoring
 
-```text
-1. Receives a number
-2. Squares the number
-3. Returns the result
-```
+Each checkpoint can be scored using factors such as:
 
-### Slow Workload
+* Temperature
+* Wind
+* Visibility
+* Weather condition
+* Normal road conditions
+* Construction
+* Wet roads
+* Snow
+* Ice
+* Road closure
+* Nighttime travel
 
-The slow workload uses a controlled delay to simulate work. This is useful for testing the queue, workers, job status tracking, and baseline scaling behavior.
+The scoring logic is separated from API and worker infrastructure so it can be tested independently.
 
-Each task:
+## Blocked Routes
 
-```text
-1. Receives a number
-2. Waits for a configured delay
-3. Returns the square of the number
-```
+A road closure is treated as a blocking condition rather than an ordinary risk value.
 
-### Matrix Workload
+When an applicable closure is matched:
 
-The matrix workload is the main AI-style compute benchmark.
+* The route may receive a risk score of 100
+* The route risk level becomes `Blocked`
+* `route_blocked` becomes `true`
+* Blocking checkpoints are listed
+* A warning explains that rerouting is required
 
-Each matrix task:
+This prevents a serious closure from being averaged down by otherwise safe checkpoints.
 
-```text
-1. Creates two deterministic NumPy matrices
-2. Multiplies the matrices together
-3. Repeats the multiplication several times
-4. Sums the result into a checksum
-5. Returns the checksum instead of the full matrix
-```
+## State 511 Roadway Events
 
-For the official clean scaling run, the matrix workload used:
+The project includes a provider-oriented state-event loader.
 
-```text
-Matrix size: 700 x 700
-Iterations per task: 40
-Task count: 20
-Worker counts tested: 1, 2, 4, 8, 16, 32
-```
+The current implementation includes Nevada 511 support.
 
-This workload simulates the type of numerical compute used in AI, machine learning, vector processing, and scientific computing systems.
+Roadway events can be classified as:
 
-### Vector Workload
+* Active
+* Upcoming
+* Future
+* Expired
+* Unknown
 
-The vector workload simulates embedding-style vector similarity.
+Active events can affect route scoring. Upcoming events can be disclosed separately without being treated as currently active.
 
-Each vector task:
-
-```text
-1. Creates two deterministic vectors
-2. Computes a dot product
-3. Computes vector magnitudes
-4. Calculates cosine similarity
-5. Returns the similarity score and checksum
-```
-
-This workload is useful for representing AI-adjacent tasks such as embedding comparison, search, recommendation, and retrieval systems.
-
-### Reliability Workloads
-
-The project includes two reliability-focused workloads.
-
-#### Permanent Failure Workload
-
-This workload intentionally causes certain tasks to fail permanently.
-
-Example behavior:
-
-```text
-Input: [1, 2, 3, 4]
-Odd numbers succeed
-Even numbers fail
-Final job status becomes PARTIAL_FAILURE
-```
-
-This proves that failed tasks are detected and reported correctly.
-
-#### Transient Failure Workload
-
-This workload intentionally fails tasks for a set number of attempts, then allows them to succeed after retry.
-
-Example behavior:
-
-```text
-Input: [1, 2, 3, 4]
-fail_attempts: 2
-Each task fails twice
-Each task succeeds on the third attempt
-Final job status becomes SUCCESS
-```
-
-This proves that retry behavior works and that transient failures can eventually complete successfully.
-
-## Running the System in Development Mode
+## Windows Development Setup
 
 From the project root, activate the virtual environment:
 
-```bash
-source .venv/bin/activate
+```powershell
+.\.venv\Scripts\Activate.ps1
 ```
 
-Start the API and workers:
+Start the local development environment:
 
-```bash
-./scripts/start_dev.sh 4
+```powershell
+.\scripts\start_dev.ps1
 ```
 
-The number at the end controls worker concurrency.
+This starts:
 
-For example:
+* Redis, if needed
+* FastAPI
+* A Celery worker
 
-```bash
-./scripts/start_dev.sh 1
+Windows local development uses Celery's solo worker pool for stability. Docker worker containers are used for actual scaling experiments.
+
+## Run the Main API Test
+
+After starting the development environment:
+
+```powershell
+.\scripts\test_routed_route_risk_api.ps1
 ```
 
-starts the system with 1 worker, while:
+The retained test:
 
-```bash
-./scripts/start_dev.sh 4
+* Submits a routed job
+* Includes predictable supplemental roadway events
+* Polls job progress
+* Retrieves raw task results
+* Retrieves the route summary
+* Prints blocking and risk details
+
+## Scaling Experiments
+
+The active scaling system benchmarks the real Route Risk Engine workload.
+
+Artificial slow, matrix, and vector benchmark endpoints are no longer part of the running application.
+
+### Windows
+
+```powershell
+$env:TASKS = "20"
+.\scripts\run_scaling_experiment.ps1 1 2 4 8
 ```
 
-starts the system with 4 workers.
+`TASKS` controls the requested route checkpoint count.
 
-The startup script also cleans up old FastAPI and Celery processes before starting a new run. This helps prevent old workers from affecting benchmark results.
+The positional values control the number of Docker worker containers used for each run.
 
-## API Endpoints
-
-### Submit a Standard Batch
-
-```text
-POST /submit_batch
-```
-
-Submits a batch of normal square-number tasks.
-
-Example request body:
-
-```json
-{
-  "numbers": [1, 2, 3, 4]
-}
-```
-
-### Submit a Slow Batch
-
-```text
-POST /submit_slow_batch
-```
-
-Submits a batch of slower tasks used for baseline benchmark testing.
-
-Example request body:
-
-```json
-{
-  "numbers": [1, 2, 3, 4],
-  "delay_seconds": 1
-}
-```
-
-### Submit a Matrix Batch
-
-```text
-POST /submit_matrix_batch
-```
-
-Submits AI-style deterministic matrix compute tasks.
-
-Example request body:
-
-```json
-{
-  "task_count": 20,
-  "matrix_size": 700
-}
-```
-
-### Submit a Vector Batch
-
-```text
-POST /submit_vector_batch
-```
-
-Submits AI-style deterministic vector similarity tasks.
-
-Example request body:
-
-```json
-{
-  "task_count": 20,
-  "vector_size": 1000
-}
-```
-
-### Submit an Unreliable Batch
-
-```text
-POST /submit_unreliable_batch
-```
-
-Submits tasks that can permanently fail.
-
-Example request body:
-
-```json
-{
-  "numbers": [1, 2, 3, 4],
-  "fail_on_even": true
-}
-```
-
-Expected behavior:
-
-```text
-1 succeeds
-2 fails
-3 succeeds
-4 fails
-Final job status: PARTIAL_FAILURE
-```
-
-### Submit a Transient Unreliable Batch
-
-```text
-POST /submit_transient_unreliable_batch
-```
-
-Submits tasks that fail temporarily and then succeed after retry.
-
-Example request body:
-
-```json
-{
-  "numbers": [1, 2, 3, 4],
-  "fail_attempts": 2
-}
-```
-
-Expected behavior:
-
-```text
-Each task fails twice
-Each task succeeds on the third attempt
-Final job status: SUCCESS
-```
-
-### Check Job Status
-
-```text
-GET /job_status/{job_id}
-```
-
-Returns job progress information, including:
-
-```text
-job ID
-workload type
-overall status
-total task count
-completed task count
-failed task count
-pending task count
-running task count
-retrying task count
-progress percentage
-metadata
-```
-
-### Get Job Results
-
-```text
-GET /results/{job_id}
-```
-
-Returns results for a submitted job.
-
-## Benchmarking
-
-The benchmark script submits a workload, polls the job status endpoint, measures total runtime, calculates throughput, and saves the result to a CSV file.
-
-The automated scaling experiment script is the preferred way to run repeatable benchmark comparisons.
-
-Example slow workload scaling experiment:
+### macOS or Linux
 
 ```bash
-./scripts/run_scaling_experiment.sh 1 2 4 8
+TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4 8
 ```
 
-Example matrix workload scaling experiment:
+## Benchmark Measurements
 
-```bash
-WORKLOAD=matrix SIZE=700 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4 8 16 32
-```
+Each benchmark run records:
 
-Example vector workload scaling experiment:
+* Timestamp
+* Workload
+* Task count
+* Worker count
+* Total runtime
+* Throughput in tasks per second
+* Final status
+* Completed tasks
+* Failed tasks
 
-```bash
-WORKLOAD=vector SIZE=1000 TASKS=20 ./scripts/run_scaling_experiment.sh 1 2 4
-```
-
-Benchmark results are saved to:
+Results are appended to:
 
 ```text
 benchmarks/results.csv
 ```
 
-## Benchmark CSV Format
+## Generate Benchmark Graphs
 
-The current benchmark results CSV uses the following headings:
+Generate graphs for the current Route Risk Engine workload:
+
+```powershell
+python .\scripts\plot_benchmarks.py
+```
+
+Generated graph types include:
+
+* Runtime versus worker count
+* Throughput versus worker count
+* Measured speedup versus worker count
+
+Graph historical workloads as well:
+
+```powershell
+python .\scripts\plot_benchmarks.py --include-historical
+```
+
+Graphs are saved under:
 
 ```text
-timestamp
-workload
-task_count
-delay_seconds
-workload_size
-worker_count
-total_runtime_seconds
-throughput_tasks_per_second
-final_status
-completed_tasks
-failed_tasks
+benchmarks/graphs/
 ```
 
-Older calibration runs were moved to:
+## Current Route Risk Scaling Results
+
+The final cleanup validation benchmarked the real Route Risk Engine workload with 16 checkpoint tasks.
+
+| Workers | Runtime (seconds) | Throughput (tasks/second) | Measured speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 14.67 | 1.09 | 1.00x |
+| 2 | 7.91 | 2.02 | 1.85x |
+| 4 | 5.33 | 3.00 | 2.75x |
+
+The 1-to-4-worker comparison reduced runtime from 14.67 seconds to 5.33 seconds and produced approximately 2.75x measured speedup. This exceeds the senior-project goal of demonstrating at least two-times scaling on the final route-risk workload.
+
+## Historical Scaling Evidence
+Before the project pivot, matrix workloads were used to validate the distributed architecture.
+
+One historical experiment improved throughput from approximately 0.40 tasks per second with one worker to approximately 0.87 tasks per second with four workers.
+
+That represented approximately:
 
 ```text
-benchmarks/results_archive_calibration_runs.csv
+0.87 / 0.40 = 2.175x
 ```
 
-This keeps the official benchmark results clean while preserving earlier testing history.
+The historical result demonstrated greater than two-times scaling during the earlier project stage.
 
-## Automated Scaling Experiment
+Those matrix tasks and API endpoints are no longer part of the active application. Historical CSV rows and graphs are retained as evidence of iterative development.
 
-The scaling experiment script:
+The final scaling workflow now measures the real Route Risk Engine workload.
 
-```text
-1. Starts the development environment with a selected worker count
-2. Waits for the API to become available
-3. Runs the benchmark
-4. Logs the benchmark result to CSV
-5. Stops the development environment
-6. Repeats the process for the next worker count
-7. Prints a summary table at the end
-```
+## Current Limitations
 
-## Official Matrix Scaling Results
+Remaining roadway-event accuracy improvements include:
 
-A clean matrix scaling experiment was completed using the following configuration:
+* Parsing nightly and overnight closure windows
+* Preserving provider-specific event metadata
+* Matching roadway names and directions
+* Distinguishing ramps from nearby through roads
+* Comparing full route geometry with event geometry
+* Avoiding normal recommendations when every candidate route is blocked
 
-```text
-Workload: matrix
-Task count: 20
-Matrix size: 700
-Iterations per matrix task: 40
-Worker counts: 1, 2, 4, 8, 16, 32
-```
-
-Results:
-
-| Worker Count | Runtime Seconds | Throughput Tasks Per Second | Final Status |
-| -----------: | --------------: | --------------------------: | ------------ |
-|            1 |           50.02 |                        0.40 | SUCCESS      |
-|            2 |           30.51 |                        0.66 | SUCCESS      |
-|            4 |           23.04 |                        0.87 | SUCCESS      |
-|            8 |           19.69 |                        1.02 | SUCCESS      |
-|           16 |           23.68 |                        0.84 | SUCCESS      |
-|           32 |           22.83 |                        0.88 | SUCCESS      |
-
-The system improved from 0.40 tasks per second with 1 worker to 0.87 tasks per second with 4 workers.
-
-```text
-0.87 / 0.40 = 2.175
-```
-
-This is approximately a 2.18x throughput improvement from 1 worker to 4 workers.
-
-This satisfies the project scaling requirement because the system demonstrates greater than 2x throughput improvement from 1 worker to 4 workers using an AI-style matrix compute workload.
-
-## Diminishing Returns Observation
-
-The best observed throughput in the clean matrix run occurred at 8 workers:
-
-```text
-8 workers: 1.02 tasks per second
-```
-
-However, throughput decreased at 16 workers and remained below the 8-worker result at 32 workers:
-
-```text
-16 workers: 0.84 tasks per second
-32 workers: 0.88 tasks per second
-```
-
-This shows a realistic performance engineering result. Adding workers improved performance up to a point, but after 8 workers, additional worker concurrency created diminishing returns. This likely happened because the matrix workload is CPU-bound and the local machine has limited CPU resources. At higher worker counts, the system spends more time sharing CPU resources between worker processes.
-
-This finding is useful because the project does not only show that scaling can work. It also shows where scaling stops helping on local hardware.
-
-## Benchmark Graphs
-
-Graphs are generated from `benchmarks/results.csv` using:
-
-```bash
-python3 scripts/plot_benchmarks.py
-```
-
-The graph script:
-
-```text
-1. Reads benchmark results from benchmarks/results.csv
-2. Filters successful runs
-3. Groups results by workload, task count, and workload size
-4. Generates runtime graphs
-5. Generates throughput graphs
-6. Prints speedup information
-7. Saves graph files to benchmarks/graphs/
-```
-
-Current official graph files:
-
-```text
-benchmarks/graphs/runtime_by_workers_matrix_tasks_20_size_700.png
-benchmarks/graphs/throughput_by_workers_matrix_tasks_20_size_700.png
-```
-
-The runtime graph shows that runtime decreases from 1 to 8 workers, then increases slightly at 16 workers.
-
-The throughput graph shows that throughput improves from 1 to 8 workers, then drops at 16 and remains below the 8-worker result at 32 workers.
-
-## Reliability Validation
-
-Reliability behavior has been validated with two tests.
-
-### Permanent Failure Test
-
-Endpoint:
-
-```text
-POST /submit_unreliable_batch
-```
-
-Test input:
-
-```json
-{
-  "numbers": [1, 2, 3, 4],
-  "fail_on_even": true
-}
-```
-
-Observed result:
-
-```text
-Final status: PARTIAL_FAILURE
-Total tasks: 4
-Completed tasks: 2
-Failed tasks: 2
-Progress: 100.0
-```
-
-Task-level behavior:
-
-```text
-1 succeeded
-2 failed with intentional failure
-3 succeeded
-4 failed with intentional failure
-```
-
-This proves that the system detects task failures and reports partial job failure correctly.
-
-### Transient Retry Test
-
-Endpoint:
-
-```text
-POST /submit_transient_unreliable_batch
-```
-
-Test input:
-
-```json
-{
-  "numbers": [1, 2, 3, 4],
-  "fail_attempts": 2
-}
-```
-
-Observed result:
-
-```text
-Final status: SUCCESS
-Total tasks: 4
-Completed tasks: 4
-Failed tasks: 0
-Retrying tasks: 0
-Progress: 100.0
-```
-
-Task-level behavior:
-
-```text
-Each task failed twice
-Each task succeeded on the third attempt
-Each task returned attempts: 3
-Each task returned retries_used: 2
-```
-
-This proves that the system supports retry behavior for transient failures.
-
-## Requirements Progress
-
-| Requirement                           | Status  | Evidence                                                                                                |
-| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| R1 Job Submission                     | Working | The API accepts batch jobs and returns a job ID                                                         |
-| R2 Distributed Task Execution         | Working | Celery workers process queued tasks through Redis                                                       |
-| R3 Progress Reporting                 | Working | Job status reports completed, failed, pending, running, retrying, and progress values                   |
-| R4 Deterministic Functional Execution | Working | Matrix and vector tasks use deterministic seeded inputs and return repeatable checksum-style outputs    |
-| R5 Performance Measurement            | Working | Benchmark script records runtime and throughput to CSV                                                  |
-| R6 Scaling Requirement                | Working | Matrix scaling improved from 0.40 to 0.87 tasks/sec from 1 to 4 workers, about 2.18x                    |
-| R7 Reliability                        | Working | Permanent failures report PARTIAL_FAILURE, while transient failures retry and eventually report SUCCESS |
-
-## What Has Been Implemented
-
-* FastAPI application
-* Redis queue integration
-* Celery worker setup
-* Batch job submission
-* Slow benchmark workload
-* Matrix compute workload
-* Vector similarity workload
-* Permanent failure workload
-* Transient retry workload
-* Real-time job progress tracking
-* Retry count visibility in task results
-* Benchmark script with CSV logging
-* Automated scaling experiment script
-* Final scaling experiment summary output
-* Benchmark graph generation
-* Development startup script with process cleanup
-
-## Next Steps
-
-### 1. Docker Integration Review
-
-* Confirm current Docker files match the updated API and worker structure
-* Make sure Redis, FastAPI, and Celery can run through Docker
-* Ensure matrix and reliability workloads work in the Docker environment
-
-### 2. Documentation and Demo Readiness
-
-* Add a clear project demonstration flow
-* Document how each requirement is satisfied
-* Keep benchmark evidence clean and reproducible
-* Prepare commands for live demonstration
-
-### 3. Final Demonstration Preparation
-
-* Show job submission
-* Show status tracking
-* Show reliability behavior
-* Show benchmark results
-* Show benchmark graphs
-* Show scaling evidence
-
-### 4. Further Reliability Improvements
-
-* Add optional retry configuration per request
-* Add clearer retry history if needed
-* Add persistent job storage if the project scope allows
+These improvements are part of the next development stage.
 
 ## Senior Project Significance
 
-This project is significant because it demonstrates several professional software engineering concepts:
+This project demonstrates:
 
 * Distributed systems design
 * Backend API development
-* Asynchronous task processing
-* Worker-based parallel execution
-* Queue-based architecture
-* Functional task execution
-* AI-style numerical workload orchestration
-* Failure handling
-* Retry behavior
-* Performance benchmarking
-* Scalability analysis
+* Redis message queues
+* Celery worker processing
+* Asynchronous job execution
+* Multi-service Docker environments
+* External API integration
+* Geographic route processing
+* Functional scoring and aggregation logic
+* Performance measurement
+* Worker-scaling analysis
+* Cross-platform development
+* Iterative requirements-driven engineering
 
-The project is also resume-relevant because it shows practical experience with backend systems, task queues, reliability handling, performance measurement, and infrastructure-minded Python development.
+The project applies distributed computing to a practical route-safety problem rather than keeping the workload as an artificial benchmark.
 
-## Purpose
+## Project Scope
 
-The purpose of this project is not to build a large production AI platform. Instead, the goal is to build a controlled and explainable distributed task orchestration system that simulates AI-style workloads and allows performance scaling and reliability behavior to be measured clearly.
+This application is a prototype risk-analysis engine.
 
-This makes the project practical for a senior project because it is:
+It is not intended to replace a production navigation platform or guarantee road safety. Its purpose is to demonstrate:
 
-* Demonstrable
-* Measurable
-* Scoped for completion
-* Relevant to backend and AI systems engineering
-* Suitable for discussion in interviews
+* Distributed checkpoint processing
+* Route-risk scoring
+* Route comparison
+* External data integration
+* Progress tracking
+* Performance scaling
+* Explainable route recommendations
 
 ## Author
 

@@ -1,178 +1,365 @@
+import argparse
 import csv
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RESULTS_FILE = PROJECT_ROOT / "benchmarks" / "results.csv"
-GRAPHS_DIR = PROJECT_ROOT / "benchmarks" / "graphs"
+
+DEFAULT_RESULTS_FILE = (
+    PROJECT_ROOT
+    / "benchmarks"
+    / "results.csv"
+)
+
+DEFAULT_GRAPHS_DIR = (
+    PROJECT_ROOT
+    / "benchmarks"
+    / "graphs"
+)
+
+BenchmarkRow = Dict[str, str]
+GroupedResults = Dict[str, List[BenchmarkRow]]
 
 
-def load_results() -> List[Dict[str, str]]:
+def parse_float(
+    value: str,
+    default: float = 0.0,
+) -> float:
     """
-    Loads benchmark results from benchmarks/results.csv.
+    Safely convert CSV text into a float.
     """
-    if not RESULTS_FILE.exists():
-        raise FileNotFoundError(f"Could not find results file: {RESULTS_FILE}")
 
-    with RESULTS_FILE.open("r", newline="") as file:
-        reader = csv.DictReader(file)
-        return list(reader)
-
-
-def parse_float(value: str, default: float = 0.0) -> float:
-    """
-    Safely parses a float from CSV text.
-    """
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
 
 
-def parse_int(value: str, default: int = 0) -> int:
+def parse_int(
+    value: str,
+    default: int = 0,
+) -> int:
     """
-    Safely parses an integer from CSV text.
+    Safely convert CSV text into an integer.
     """
+
     try:
         return int(float(value))
     except (TypeError, ValueError):
         return default
 
 
-def filter_successful_results(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def load_results(
+    results_file: Path,
+) -> List[BenchmarkRow]:
     """
-    Keeps only successful benchmark rows.
+    Load benchmark rows from the selected CSV file.
     """
+
+    if not results_file.exists():
+        raise FileNotFoundError(
+            f"Could not find results file: {results_file}"
+        )
+
+    with results_file.open(
+        "r",
+        newline="",
+        encoding="utf-8",
+    ) as file:
+        reader = csv.DictReader(file)
+        return list(reader)
+
+
+def filter_successful_results(
+    rows: List[BenchmarkRow],
+) -> List[BenchmarkRow]:
+    """
+    Keep only successful benchmark runs.
+    """
+
     return [
         row
         for row in rows
-        if row.get("final_status", "").upper() == "SUCCESS"
+        if row.get(
+            "final_status",
+            "",
+        ).strip().upper() == "SUCCESS"
     ]
 
 
-def group_results(rows: List[Dict[str, str]]) -> Dict[str, List[Dict[str, str]]]:
+def filter_workloads(
+    rows: List[BenchmarkRow],
+    include_historical: bool,
+) -> List[BenchmarkRow]:
     """
-    Groups results by workload, task count, and workload size.
+    By default, graph only the final Route Risk Engine workload.
 
-    This prevents slow, matrix, vector, and route-risk tests from being mixed together.
+    Historical slow, matrix, and vector rows remain available through
+    the --include-historical command-line option.
     """
-    grouped_results = defaultdict(list)
 
-    for row in rows:
-        workload = row.get("workload", "unknown")
-        task_count = row.get("task_count", "unknown")
-        workload_size = row.get("workload_size", "")
+    if include_historical:
+        return rows
 
-        if workload == "slow":
-            workload_size = row.get("delay_seconds", workload_size)
-
-        group_key = f"{workload}_tasks_{task_count}_size_{workload_size}"
-        grouped_results[group_key].append(row)
-
-    return grouped_results
+    return [
+        row
+        for row in rows
+        if row.get(
+            "workload",
+            "",
+        ).strip().lower() == "route_risk"
+    ]
 
 
-def clean_group_name(group_key: str) -> str:
+def build_group_key(
+    row: BenchmarkRow,
+) -> str:
     """
-    Converts a group key into a safe filename piece.
+    Build a group key for comparable experiment runs.
+
+    Rows are comparable when they use the same workload, task count,
+    and workload size.
     """
+
+    workload = row.get(
+        "workload",
+        "unknown",
+    ).strip().lower()
+
+    task_count = row.get(
+        "task_count",
+        "unknown",
+    ).strip()
+
+    workload_size = row.get(
+        "workload_size",
+        "",
+    ).strip()
+
+    if workload == "slow":
+        workload_size = row.get(
+            "delay_seconds",
+            workload_size,
+        ).strip()
+
     return (
-        group_key
-        .replace(" ", "_")
-        .replace(".", "_")
-        .replace("/", "_")
-        .replace("\\", "_")
+        f"{workload}"
+        f"_tasks_{task_count}"
+        f"_size_{workload_size}"
     )
 
 
-def sort_rows_by_worker_count(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def group_results(
+    rows: List[BenchmarkRow],
+) -> GroupedResults:
     """
-    Sorts rows by worker count.
+    Group rows into comparable experiment configurations.
     """
-    return sorted(rows, key=lambda row: parse_int(row.get("worker_count", "0")))
+
+    grouped_results: GroupedResults = defaultdict(list)
+
+    for row in rows:
+        group_key = build_group_key(row)
+        grouped_results[group_key].append(row)
+
+    return dict(grouped_results)
 
 
-def get_group_title(rows: List[Dict[str, str]]) -> str:
+def select_latest_result_per_worker(
+    rows: List[BenchmarkRow],
+) -> List[BenchmarkRow]:
     """
-    Builds a readable graph title from the first row in a result group.
+    Keep only the newest CSV row for each worker count.
+
+    The CSV is appended chronologically, so a later row replaces an
+    earlier row with the same worker count.
     """
+
+    latest_by_worker: Dict[int, BenchmarkRow] = {}
+
+    for row in rows:
+        worker_count = parse_int(
+            row.get(
+                "worker_count",
+                "0",
+            )
+        )
+
+        if worker_count < 1:
+            continue
+
+        latest_by_worker[worker_count] = row
+
+    return [
+        latest_by_worker[worker_count]
+        for worker_count in sorted(latest_by_worker)
+    ]
+
+
+def clean_group_name(
+    group_key: str,
+) -> str:
+    """
+    Convert a result-group name into a safe filename.
+    """
+
+    cleaned_name = group_key
+
+    for character in [
+        " ",
+        ".",
+        "/",
+        "\\",
+        ":",
+    ]:
+        cleaned_name = cleaned_name.replace(
+            character,
+            "_",
+        )
+
+    return cleaned_name
+
+
+def get_group_title(
+    rows: List[BenchmarkRow],
+) -> str:
+    """
+    Build a readable graph title.
+    """
+
     first_row = rows[0]
 
-    workload = first_row.get("workload", "unknown")
-    task_count = first_row.get("task_count", "unknown")
+    workload = first_row.get(
+        "workload",
+        "unknown",
+    ).strip().lower()
 
-    if workload == "slow":
-        delay = first_row.get("delay_seconds", "unknown")
-        return f"{workload.title()} Workload, {task_count} Tasks, {delay}s Delay"
+    task_count = first_row.get(
+        "task_count",
+        "unknown",
+    ).strip()
 
     if workload == "route_risk":
-        return f"Route Risk Workload, {task_count} Checkpoints"
+        return (
+            "Distributed Route Risk Engine"
+            f", {task_count} Checkpoint Tasks"
+        )
 
-    workload_size = first_row.get("workload_size", "unknown")
-    return f"{workload.title()} Workload, {task_count} Tasks, Size {workload_size}"
+    if workload == "slow":
+        delay = first_row.get(
+            "delay_seconds",
+            "unknown",
+        ).strip()
+
+        return (
+            "Historical Slow Workload"
+            f", {task_count} Tasks"
+            f", {delay}s Delay"
+        )
+
+    workload_size = first_row.get(
+        "workload_size",
+        "unknown",
+    ).strip()
+
+    return (
+        f"Historical {workload.title()} Workload"
+        f", {task_count} Tasks"
+        f", Size {workload_size}"
+    )
 
 
-def plot_runtime(rows: List[Dict[str, str]], group_key: str) -> Path:
+def extract_graph_values(
+    rows: List[BenchmarkRow],
+) -> Tuple[
+    List[int],
+    List[float],
+    List[float],
+]:
     """
-    Creates a runtime versus worker count graph.
+    Extract worker, runtime, and throughput values.
     """
-    sorted_rows = sort_rows_by_worker_count(rows)
 
     worker_counts = [
-        parse_int(row.get("worker_count", "0"))
-        for row in sorted_rows
+        parse_int(
+            row.get(
+                "worker_count",
+                "0",
+            )
+        )
+        for row in rows
     ]
 
     runtimes = [
-        parse_float(row.get("total_runtime_seconds", "0"))
-        for row in sorted_rows
-    ]
-
-    title = get_group_title(sorted_rows)
-    output_path = GRAPHS_DIR / f"runtime_by_workers_{clean_group_name(group_key)}.png"
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(worker_counts, runtimes, marker="o")
-    plt.xlabel("Worker Count")
-    plt.ylabel("Runtime Seconds")
-    plt.title(f"Runtime vs Worker Count\n{title}")
-    plt.grid(True)
-    plt.xticks(worker_counts)
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
-
-    return output_path
-
-
-def plot_throughput(rows: List[Dict[str, str]], group_key: str) -> Path:
-    """
-    Creates a throughput versus worker count graph.
-    """
-    sorted_rows = sort_rows_by_worker_count(rows)
-
-    worker_counts = [
-        parse_int(row.get("worker_count", "0"))
-        for row in sorted_rows
+        parse_float(
+            row.get(
+                "total_runtime_seconds",
+                "0",
+            )
+        )
+        for row in rows
     ]
 
     throughputs = [
-        parse_float(row.get("throughput_tasks_per_second", "0"))
-        for row in sorted_rows
+        parse_float(
+            row.get(
+                "throughput_tasks_per_second",
+                "0",
+            )
+        )
+        for row in rows
     ]
 
-    title = get_group_title(sorted_rows)
-    output_path = GRAPHS_DIR / f"throughput_by_workers_{clean_group_name(group_key)}.png"
+    return (
+        worker_counts,
+        runtimes,
+        throughputs,
+    )
+
+
+def plot_runtime(
+    rows: List[BenchmarkRow],
+    group_key: str,
+    graphs_dir: Path,
+) -> Path:
+    """
+    Generate runtime versus worker count.
+    """
+
+    worker_counts, runtimes, _ = (
+        extract_graph_values(rows)
+    )
+
+    title = get_group_title(rows)
+
+    output_path = (
+        graphs_dir
+        / (
+            "runtime_by_workers_"
+            f"{clean_group_name(group_key)}.png"
+        )
+    )
 
     plt.figure(figsize=(10, 6))
-    plt.plot(worker_counts, throughputs, marker="o")
+
+    plt.plot(
+        worker_counts,
+        runtimes,
+        marker="o",
+    )
+
     plt.xlabel("Worker Count")
-    plt.ylabel("Throughput, Tasks Per Second")
-    plt.title(f"Throughput vs Worker Count\n{title}")
+    plt.ylabel("Total Runtime in Seconds")
+
+    plt.title(
+        "Runtime vs Worker Count\n"
+        f"{title}"
+    )
+
     plt.grid(True)
     plt.xticks(worker_counts)
     plt.tight_layout()
@@ -182,76 +369,346 @@ def plot_throughput(rows: List[Dict[str, str]], group_key: str) -> Path:
     return output_path
 
 
-def calculate_speedup(rows: List[Dict[str, str]]) -> None:
+def plot_throughput(
+    rows: List[BenchmarkRow],
+    group_key: str,
+    graphs_dir: Path,
+) -> Path:
     """
-    Prints speedup information for each group.
+    Generate throughput versus worker count.
     """
-    sorted_rows = sort_rows_by_worker_count(rows)
 
-    if not sorted_rows:
-        return
-
-    baseline = sorted_rows[0]
-    baseline_workers = parse_int(baseline.get("worker_count", "0"))
-    baseline_throughput = parse_float(
-        baseline.get("throughput_tasks_per_second", "0")
+    worker_counts, _, throughputs = (
+        extract_graph_values(rows)
     )
 
+    title = get_group_title(rows)
+
+    output_path = (
+        graphs_dir
+        / (
+            "throughput_by_workers_"
+            f"{clean_group_name(group_key)}.png"
+        )
+    )
+
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(
+        worker_counts,
+        throughputs,
+        marker="o",
+    )
+
+    plt.xlabel("Worker Count")
+    plt.ylabel("Completed Tasks Per Second")
+
+    plt.title(
+        "Throughput vs Worker Count\n"
+        f"{title}"
+    )
+
+    plt.grid(True)
+    plt.xticks(worker_counts)
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+    return output_path
+
+
+def calculate_runtime_speedups(
+    rows: List[BenchmarkRow],
+) -> List[float]:
+    """
+    Calculate runtime speedup relative to the smallest worker count.
+
+    Speedup is:
+
+        baseline runtime / current runtime
+    """
+
+    _, runtimes, _ = extract_graph_values(rows)
+
+    if not runtimes:
+        return []
+
+    baseline_runtime = runtimes[0]
+
+    if baseline_runtime <= 0:
+        return [
+            0.0
+            for _ in runtimes
+        ]
+
+    return [
+        (
+            baseline_runtime / runtime
+            if runtime > 0
+            else 0.0
+        )
+        for runtime in runtimes
+    ]
+
+
+def plot_speedup(
+    rows: List[BenchmarkRow],
+    group_key: str,
+    graphs_dir: Path,
+) -> Path:
+    """
+    Generate measured speedup versus worker count.
+
+    An ideal linear scaling reference is included for comparison.
+    """
+
+    worker_counts, _, _ = extract_graph_values(rows)
+    measured_speedups = calculate_runtime_speedups(rows)
+
+    baseline_workers = worker_counts[0]
+
+    ideal_speedups = [
+        worker_count / baseline_workers
+        for worker_count in worker_counts
+    ]
+
+    title = get_group_title(rows)
+
+    output_path = (
+        graphs_dir
+        / (
+            "speedup_by_workers_"
+            f"{clean_group_name(group_key)}.png"
+        )
+    )
+
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(
+        worker_counts,
+        measured_speedups,
+        marker="o",
+        label="Measured Speedup",
+    )
+
+    plt.plot(
+        worker_counts,
+        ideal_speedups,
+        marker="o",
+        linestyle="--",
+        label="Ideal Linear Speedup",
+    )
+
+    plt.xlabel("Worker Count")
+    plt.ylabel("Speedup Compared with Baseline")
+
+    plt.title(
+        "Measured Scaling Speedup\n"
+        f"{title}"
+    )
+
+    plt.grid(True)
+    plt.xticks(worker_counts)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+    return output_path
+
+
+def print_scaling_summary(
+    rows: List[BenchmarkRow],
+) -> None:
+    """
+    Print runtime, throughput, and speedup measurements.
+    """
+
+    worker_counts, runtimes, throughputs = (
+        extract_graph_values(rows)
+    )
+
+    runtime_speedups = calculate_runtime_speedups(rows)
+
+    baseline_workers = worker_counts[0]
+    baseline_throughput = throughputs[0]
+
     print()
-    print(get_group_title(sorted_rows))
-    print("-" * 60)
+    print(get_group_title(rows))
+    print("-" * 75)
 
-    for row in sorted_rows:
-        workers = parse_int(row.get("worker_count", "0"))
-        runtime = parse_float(row.get("total_runtime_seconds", "0"))
-        throughput = parse_float(row.get("throughput_tasks_per_second", "0"))
-
-        if baseline_throughput > 0:
-            speedup = throughput / baseline_throughput
-        else:
-            speedup = 0.0
+    for (
+        worker_count,
+        runtime,
+        throughput,
+        runtime_speedup,
+    ) in zip(
+        worker_counts,
+        runtimes,
+        throughputs,
+        runtime_speedups,
+    ):
+        throughput_speedup = (
+            throughput / baseline_throughput
+            if baseline_throughput > 0
+            else 0.0
+        )
 
         print(
-            f"{workers} workers: "
+            f"{worker_count} worker(s): "
             f"{runtime:.2f}s runtime, "
             f"{throughput:.2f} tasks/sec, "
-            f"{speedup:.2f}x throughput vs {baseline_workers} worker"
+            f"{runtime_speedup:.2f}x runtime speedup, "
+            f"{throughput_speedup:.2f}x throughput "
+            f"vs {baseline_workers} worker(s)"
         )
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate scaling graphs for the Distributed "
+            "Route Risk Engine."
+        )
+    )
+
+    parser.add_argument(
+        "--results-file",
+        type=Path,
+        default=DEFAULT_RESULTS_FILE,
+        help=(
+            "Benchmark CSV file to read."
+        ),
+    )
+
+    parser.add_argument(
+        "--graphs-dir",
+        type=Path,
+        default=DEFAULT_GRAPHS_DIR,
+        help=(
+            "Directory where generated graphs are saved."
+        ),
+    )
+
+    parser.add_argument(
+        "--include-historical",
+        action="store_true",
+        help=(
+            "Also graph historical slow, matrix, and vector "
+            "workloads. By default, only route_risk rows are used."
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def main() -> None:
-    GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
+    args = parse_args()
 
-    rows = load_results()
-    successful_rows = filter_successful_results(rows)
+    args.graphs_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    if not successful_rows:
-        print("No successful benchmark rows found.")
+    all_rows = load_results(
+        args.results_file
+    )
+
+    successful_rows = filter_successful_results(
+        all_rows
+    )
+
+    selected_rows = filter_workloads(
+        successful_rows,
+        include_historical=args.include_historical,
+    )
+
+    if not selected_rows:
+        print(
+            "No successful Route Risk Engine "
+            "benchmark rows were found."
+        )
         return
 
-    grouped_results = group_results(successful_rows)
+    grouped_results = group_results(
+        selected_rows
+    )
 
-    print(f"Loaded {len(rows)} total benchmark rows.")
-    print(f"Using {len(successful_rows)} successful benchmark rows.")
-    print(f"Found {len(grouped_results)} result group(s).")
+    print(
+        f"Loaded {len(all_rows)} total benchmark row(s)."
+    )
 
-    generated_graphs = []
+    print(
+        f"Found {len(successful_rows)} "
+        "successful benchmark row(s)."
+    )
+
+    print(
+        f"Using {len(selected_rows)} selected row(s)."
+    )
+
+    if args.include_historical:
+        print(
+            "Historical workload graphing is enabled."
+        )
+    else:
+        print(
+            "Graphing only the final route_risk workload."
+        )
+
+    generated_graphs: List[Path] = []
 
     for group_key, group_rows in grouped_results.items():
-        if len(group_rows) < 2:
+        latest_rows = select_latest_result_per_worker(
+            group_rows
+        )
+
+        if len(latest_rows) < 2:
             print()
-            print(f"Skipping graph for {group_key} because it has fewer than 2 rows.")
+            print(
+                f"Skipping {group_key}: "
+                "at least two different worker counts "
+                "are required."
+            )
             continue
 
-        runtime_graph = plot_runtime(group_rows, group_key)
-        throughput_graph = plot_throughput(group_rows, group_key)
+        generated_graphs.append(
+            plot_runtime(
+                rows=latest_rows,
+                group_key=group_key,
+                graphs_dir=args.graphs_dir,
+            )
+        )
 
-        generated_graphs.append(runtime_graph)
-        generated_graphs.append(throughput_graph)
+        generated_graphs.append(
+            plot_throughput(
+                rows=latest_rows,
+                group_key=group_key,
+                graphs_dir=args.graphs_dir,
+            )
+        )
 
-        calculate_speedup(group_rows)
+        generated_graphs.append(
+            plot_speedup(
+                rows=latest_rows,
+                group_key=group_key,
+                graphs_dir=args.graphs_dir,
+            )
+        )
+
+        print_scaling_summary(
+            latest_rows
+        )
 
     print()
+
+    if not generated_graphs:
+        print(
+            "No graphs were generated because no group had "
+            "at least two different worker counts."
+        )
+        return
+
     print("Generated graph files:")
 
     for graph_path in generated_graphs:

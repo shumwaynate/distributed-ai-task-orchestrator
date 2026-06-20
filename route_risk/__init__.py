@@ -1,23 +1,26 @@
-"""
-route_risk package
+﻿"""
+Route Risk Engine package.
 
-This package contains the Route Risk Engine logic for the senior project pivot.
+This package contains the core route analysis, scoring, routing, weather,
+road-event integration, and recommendation logic for the senior project.
 
-The original project started as a Distributed AI Task Orchestrator using:
+The project began as a Distributed AI Task Orchestrator using FastAPI,
+Redis, Celery, Docker Compose, and worker-scaling experiments. That
+distributed architecture now powers the Route Risk Engine's real-world
+workload.
 
-- FastAPI
-- Redis
-- Celery
-- Docker Compose
-- Benchmarking and scaling experiments
+Current capabilities include:
 
-The route_risk package adds the new real-world workload:
+- Generating and comparing driving routes
+- Sampling route checkpoints
+- Fetching live weather conditions
+- Loading and matching state 511 roadway events
+- Scoring route segments independently
+- Aggregating route-level risk summaries
+- Recommending safer route alternatives
+- Running distributed worker-scaling experiments
 
-- Route segment scoring
-- Weather and road-condition risk analysis
-- Route-level risk summaries
-- Future API/data-source integration
-
-This package should stay separate from the original orchestrator infrastructure
-so the project can clearly show what was preserved and what was added.
+The route_risk package contains the domain-specific application logic,
+while the app package contains the FastAPI, Redis, and Celery orchestration
+infrastructure.
 """

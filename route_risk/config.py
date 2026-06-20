@@ -1,20 +1,38 @@
-"""Local configuration and secret-loading helpers.
+"""Configuration and secret-loading helpers.
 
-This file stores the locations of secret files, but never stores the actual
-secret values in the project repository.
+API keys are loaded from environment variables first. When an environment
+variable is unavailable, the project can fall back to an external key file.
 
-Each key file is read only when its matching getter function is called.
-This allows state API integrations to be added gradually without requiring
-every API key to be available immediately.
+Secret values must never be stored in the repository.
 """
 
+import os
 from pathlib import Path
 from typing import List
 
 
+def _resolve_default_key_directory() -> Path:
+    """Return a portable default directory for external API-key files."""
+
+    candidates = [
+        Path.home() / "OneDrive" / "Desktop" / "ORS Key",
+        Path.home() / "Desktop" / "ORS Key",
+        Path.home() / ".route-risk-keys",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return candidates[-1]
+
+
 KEY_DIRECTORY = Path(
-    r"C:\Users\nates\OneDrive\Desktop\ORS Key"
-)
+    os.getenv(
+        "ROUTE_RISK_KEY_DIRECTORY",
+        str(_resolve_default_key_directory()),
+    )
+).expanduser()
 
 ORS_KEY_FILE_PATH = KEY_DIRECTORY / "ORSKey.txt"
 IDAHO_511_KEY_FILE_PATH = KEY_DIRECTORY / "Idaho511Key.txt"
@@ -28,11 +46,12 @@ def _read_api_key_from_file(
     service_name: str,
     accepted_labels: List[str],
 ) -> str:
-    """Read and return an API key from an external text file."""
+    """Read one API key from an external text file."""
 
     if not file_path.exists():
         raise RuntimeError(
-            f"The {service_name} key file could not be found at: {file_path}"
+            f"The {service_name} key file could not be found at: "
+            f"{file_path}"
         )
 
     if not file_path.is_file():
@@ -42,7 +61,7 @@ def _read_api_key_from_file(
         )
 
     file_contents = file_path.read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
     nonempty_lines = [
@@ -76,16 +95,50 @@ def _read_api_key_from_file(
 
     if not api_key:
         raise RuntimeError(
-            f"No {service_name} API key could be read from the configured file."
+            f"No {service_name} API key could be read from the configured "
+            "file."
         )
 
     return api_key
 
 
-def get_ors_api_key() -> str:
-    """Read and return the OpenRouteService API key."""
+def _get_api_key(
+    environment_variable: str,
+    file_path: Path,
+    service_name: str,
+    accepted_labels: List[str],
+) -> str:
+    """
+    Load a key from its environment variable, then fall back to a file.
+    """
 
-    return _read_api_key_from_file(
+    environment_value = os.getenv(
+        environment_variable,
+        "",
+    ).strip()
+
+    if environment_value:
+        return environment_value
+
+    try:
+        return _read_api_key_from_file(
+            file_path=file_path,
+            service_name=service_name,
+            accepted_labels=accepted_labels,
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"No {service_name} API key was available. Set the "
+            f"{environment_variable} environment variable or provide the "
+            f"external key file. {exc}"
+        ) from exc
+
+
+def get_ors_api_key() -> str:
+    """Return the OpenRouteService API key."""
+
+    return _get_api_key(
+        environment_variable="ORS_API_KEY",
         file_path=ORS_KEY_FILE_PATH,
         service_name="OpenRouteService",
         accepted_labels=[
@@ -97,9 +150,10 @@ def get_ors_api_key() -> str:
 
 
 def get_idaho_511_api_key() -> str:
-    """Read and return the Idaho 511 API key."""
+    """Return the Idaho 511 API key."""
 
-    return _read_api_key_from_file(
+    return _get_api_key(
+        environment_variable="IDAHO_511_API_KEY",
         file_path=IDAHO_511_KEY_FILE_PATH,
         service_name="Idaho 511",
         accepted_labels=[
@@ -112,9 +166,10 @@ def get_idaho_511_api_key() -> str:
 
 
 def get_nevada_511_api_key() -> str:
-    """Read and return the Nevada 511 API key."""
+    """Return the Nevada 511 API key."""
 
-    return _read_api_key_from_file(
+    return _get_api_key(
+        environment_variable="NEVADA_511_API_KEY",
         file_path=NEVADA_511_KEY_FILE_PATH,
         service_name="Nevada 511",
         accepted_labels=[
@@ -128,9 +183,10 @@ def get_nevada_511_api_key() -> str:
 
 
 def get_utah_udot_api_key() -> str:
-    """Read and return the Utah UDOT API key."""
+    """Return the Utah UDOT API key."""
 
-    return _read_api_key_from_file(
+    return _get_api_key(
+        environment_variable="UTAH_UDOT_API_KEY",
         file_path=UTAH_UDOT_KEY_FILE_PATH,
         service_name="Utah UDOT",
         accepted_labels=[
@@ -144,9 +200,10 @@ def get_utah_udot_api_key() -> str:
 
 
 def get_arizona_511_api_key() -> str:
-    """Read and return the Arizona 511 API key."""
+    """Return the Arizona 511 API key."""
 
-    return _read_api_key_from_file(
+    return _get_api_key(
+        environment_variable="ARIZONA_511_API_KEY",
         file_path=ARIZONA_511_KEY_FILE_PATH,
         service_name="Arizona 511",
         accepted_labels=[

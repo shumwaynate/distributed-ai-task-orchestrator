@@ -1,8 +1,39 @@
+﻿# Python virtual environments
 .venv/
+venv/
+env/
+
+# Python generated files
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*Key.txt
+ORSKey.txt
+
+# Operating-system and editor files
 .DS_Store
-benchmarks/*.png
-benchmarks/*.csv
-benchmarks/results.csv
+Thumbs.db
+.vscode/
+.idea/
+
+# Temporary local output and review files
+response.json
+README_review.md
+ors_config_review.txt
+Pasted code.py
+Pasted text.txt
+*_review.txt
+
+# Logs
+*.log

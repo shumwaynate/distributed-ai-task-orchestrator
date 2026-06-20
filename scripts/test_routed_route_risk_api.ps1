@@ -1,4 +1,4 @@
-Set-Location (Join-Path $PSScriptRoot "..")
+﻿Set-Location (Join-Path $PSScriptRoot "..")
 
 Write-Host ""
 Write-Host "============================================================"
@@ -42,8 +42,8 @@ $roadEventRadiusMiles = 1.0
 #   $true for nighttime
 $isNight = $false
 
-# Demo road events near the generated Rexburg-to-Idaho-Falls route.
-# Later, these can be replaced by events from WZDx / 511 / DOT feeds.
+# Supplemental manual road events near the generated Rexburg-to-Idaho-Falls route.
+# The API may also load live state 511 events. These manual events keep this test predictable.
 $roadEvents = @(
     @{
         event_id = "demo-work-zone-rigby"
@@ -70,7 +70,7 @@ $roadEvents = @(
 # Purpose:
 # - Submit origin and destination coordinates to FastAPI.
 # - Submit optional road events to FastAPI.
-# - Let FastAPI call OSRM to generate a real route.
+# - Let FastAPI call the configured routing provider to generate a real route.
 # - Let FastAPI sample checkpoints along that route.
 # - Let FastAPI match road events to checkpoints.
 # - Submit one live-weather Celery task per checkpoint.
@@ -84,7 +84,7 @@ $roadEvents = @(
 # - Redis must be running.
 # - Celery worker must be running.
 # - Internet access must be available.
-# - OSRM public API must be reachable.
+# - The configured routing provider must be reachable.
 # - Open-Meteo API must be reachable.
 #
 # Start the app first with:
@@ -138,7 +138,7 @@ try {
 } catch {
     Write-Host "ERROR: Failed to submit routed route-risk job."
     Write-Host "Make sure FastAPI is running at http://localhost:8000"
-    Write-Host "Also make sure OSRM and Open-Meteo are reachable from your internet connection."
+    Write-Host "Also make sure the configured routing provider and Open-Meteo are reachable."
     Write-Host ""
     Write-Host $_
     exit 1

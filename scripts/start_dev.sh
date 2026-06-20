@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 
 set -e
 
@@ -29,7 +29,7 @@ cleanup_started_processes() {
     fi
 }
 
-echo "Starting Distributed AI Task Orchestrator development environment..."
+echo "Starting Distributed Route Risk Engine development environment..."
 echo "Worker concurrency: $WORKERS"
 
 if [ -f ".venv/bin/activate" ]; then
