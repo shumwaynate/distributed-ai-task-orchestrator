@@ -1,4 +1,4 @@
-"""
+﻿"""
 route_risk/integrations/state_511_clients/nevada_511_client.py
 
 Nevada 511 traffic-event integration.
@@ -564,7 +564,7 @@ def _parse_nevada_clock_time(
     if (
         twenty_four_hour_match
         and not re.search(
-            r"[ap]\.?m\.?",
+            r"[ap]\\.?m\\.?",
             text,
             flags=re.IGNORECASE,
         )
@@ -592,13 +592,13 @@ def _parse_nevada_clock_time(
             )
 
     compact_text = re.sub(
-        r"\.",
+        r"\\.",
         "",
         text,
     ).upper()
 
     compact_text = re.sub(
-        r"\s+",
+        r"\\s+",
         "",
         compact_text,
     )
@@ -639,14 +639,14 @@ def _nevada_description_time_window(
     )
 
     normalized_text = re.sub(
-        r"\s+",
+        r"\\s+",
         " ",
         text,
     ).strip()
 
     time_pattern = (
         r"(\d{1,2}(?::\d{2})?(?::\d{2})?"
-        r"\s*[ap]\.?m\.?)"
+        r"\s*[ap]\\.?m\\.?)"
     )
 
     patterns = (
@@ -803,7 +803,7 @@ def _nevada_window_is_active(
 
     import datetime as datetime_module
 
-    current_time = local_datetime.time()
+    current_time = local_Any()
     current_day = local_datetime.strftime(
         "%A"
     ).lower()
@@ -889,16 +889,169 @@ def apply_nevada_recurrence_timing(
     reference_timestamp: Optional[float] = None,
     upcoming_window_hours: float = DEFAULT_UPCOMING_WINDOW_HOURS,
 ) -> Dict[str, Any]:
-    updated_event = dict(event)
-    updated_event.setdefault(
-        "recurrence_active_now",
-        None,
-    )
-    updated_event[
-        "recurrence_timing_mode"
-    ] = "selected_driving_period"
-    return updated_event
+    """Reclassify events using recurring daily active windows."""
 
+    import datetime as datetime_module
+    from zoneinfo import ZoneInfo
+
+    updated_event = dict(event)
+
+    if updated_event.get(
+        "timing_status"
+    ) not in {
+        "active",
+        "upcoming",
+        "future",
+    }:
+        return updated_event
+
+    window = (
+        _nevada_description_time_window(
+            updated_event
+        )
+        or _nevada_schedule_time_window(
+            updated_event
+        )
+    )
+
+    if window is None:
+        updated_event[
+            "recurrence_active_now"
+        ] = None
+
+        return updated_event
+
+    days_of_week = (
+        window.get("days_of_week")
+        or _nevada_schedule_days(
+            updated_event
+        )
+    )
+
+    nevada_timezone = ZoneInfo(
+        "America/Los_Angeles"
+    )
+
+    if reference_timestamp is None:
+        reference_utc = (
+            datetime_module.datetime.now(
+                datetime_module.timezone.utc
+            )
+        )
+    else:
+        reference_utc = (
+            datetime_module.datetime.fromtimestamp(
+                float(reference_timestamp),
+                tz=datetime_module.timezone.utc,
+            )
+        )
+
+    local_reference = reference_utc.astimezone(
+        nevada_timezone
+    )
+
+    start_time = window["start_time"]
+    end_time = window["end_time"]
+
+    active_now = _nevada_window_is_active(
+        local_datetime=local_reference,
+        start_time=start_time,
+        end_time=end_time,
+        days_of_week=days_of_week,
+    )
+
+    next_start_local = _next_nevada_window_start(
+        local_datetime=local_reference,
+        start_time=start_time,
+        days_of_week=days_of_week,
+    )
+
+    next_start_utc = (
+        next_start_local.astimezone(
+            datetime_module.timezone.utc
+        )
+        if next_start_local
+        else None
+    )
+
+    next_start_hours = (
+        (
+            next_start_utc
+            - reference_utc
+        ).total_seconds()
+        / 3600.0
+        if next_start_utc
+        else None
+    )
+
+    updated_event.update(
+        {
+            "recurrence_active_now": active_now,
+            "recurrence_window_start_local": (
+                start_time.strftime("%H:%M:%S")
+            ),
+            "recurrence_window_end_local": (
+                end_time.strftime("%H:%M:%S")
+            ),
+            "recurrence_timezone": (
+                "America/Los_Angeles"
+            ),
+            "recurrence_window_source": (
+                window["source"]
+            ),
+            "recurrence_days_of_week": sorted(
+                days_of_week
+            ),
+            "next_occurrence_iso_local": (
+                next_start_local.isoformat()
+                if next_start_local
+                else None
+            ),
+            "next_occurrence_iso_utc": (
+                next_start_utc.isoformat()
+                if next_start_utc
+                else None
+            ),
+            "next_occurrence_in_hours": (
+                round(
+                    next_start_hours,
+                    2,
+                )
+                if next_start_hours is not None
+                else None
+            ),
+        }
+    )
+
+    if active_now:
+        updated_event[
+            "timing_status"
+        ] = "active"
+
+        return updated_event
+
+    if (
+        next_start_hours is not None
+        and next_start_hours
+        <= upcoming_window_hours
+    ):
+        updated_event[
+            "timing_status"
+        ] = "upcoming"
+
+        updated_event[
+            "starts_in_hours"
+        ] = round(
+            next_start_hours,
+            2,
+        )
+
+    else:
+        updated_event[
+            "timing_status"
+        ] = "future"
+
+    return updated_event
 
 
 def fetch_nevada_511_event_groups(
@@ -934,6 +1087,12 @@ def fetch_nevada_511_event_groups(
     for raw_event in raw_events:
         normalized_event = normalize_nevada_511_event(
             raw_event=raw_event,
+            reference_timestamp=reference_timestamp,
+            upcoming_window_hours=upcoming_window_hours,
+        )
+
+        normalized_event = apply_nevada_recurrence_timing(
+            event=normalized_event,
             reference_timestamp=reference_timestamp,
             upcoming_window_hours=upcoming_window_hours,
         )

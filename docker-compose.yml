@@ -11,28 +11,66 @@
       - "8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
+
+      # The application reads API-key files from this directory inside Docker.
+      ROUTE_RISK_KEY_DIRECTORY: /run/secrets/route-risk-keys
+
+      # Environment variables remain supported as an optional override.
       ORS_API_KEY: ${ORS_API_KEY:-}
       IDAHO_511_API_KEY: ${IDAHO_511_API_KEY:-}
       NEVADA_511_API_KEY: ${NEVADA_511_API_KEY:-}
       UTAH_UDOT_API_KEY: ${UTAH_UDOT_API_KEY:-}
       ARIZONA_511_API_KEY: ${ARIZONA_511_API_KEY:-}
+
     volumes:
-      - .:/app
+      # Mount the project source for local development.
+      - type: bind
+        source: .
+        target: /app
+
+      # Mount API keys read-only. The PowerShell runner supplies the
+      # ROUTE_RISK_KEYS_HOST_DIR value before Docker Compose starts.
+      - type: bind
+        source: "${ROUTE_RISK_KEYS_HOST_DIR:-./.route-risk-keys}"
+        target: /run/secrets/route-risk-keys
+        read_only: true
+
     depends_on:
       - redis
 
   worker:
     build: .
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-4} --hostname=docker_worker_${WORKER_CONCURRENCY:-4}@%h
+    command: >
+      celery -A app.worker.celery_app worker
+      --loglevel=info
+      --concurrency=${WORKER_CONCURRENCY:-1}
+      --hostname=docker_worker_${WORKER_CONCURRENCY:-1}@%h
+
     environment:
       REDIS_URL: redis://redis:6379/0
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+
+      # The application reads API-key files from this directory inside Docker.
+      ROUTE_RISK_KEY_DIRECTORY: /run/secrets/route-risk-keys
+
+      # Environment variables remain supported as an optional override.
       ORS_API_KEY: ${ORS_API_KEY:-}
       IDAHO_511_API_KEY: ${IDAHO_511_API_KEY:-}
       NEVADA_511_API_KEY: ${NEVADA_511_API_KEY:-}
       UTAH_UDOT_API_KEY: ${UTAH_UDOT_API_KEY:-}
       ARIZONA_511_API_KEY: ${ARIZONA_511_API_KEY:-}
+
     volumes:
-      - .:/app
+      # Mount the project source for local development.
+      - type: bind
+        source: .
+        target: /app
+
+      # Mount API keys read-only.
+      - type: bind
+        source: "${ROUTE_RISK_KEYS_HOST_DIR:-./.route-risk-keys}"
+        target: /run/secrets/route-risk-keys
+        read_only: true
+
     depends_on:
       - redis

@@ -1,0 +1,1348 @@
+﻿{
+    "job_id":  "9a970e28-022d-442f-b7cf-a3ed48fc1c4f",
+    "comparison_status":  "READY",
+    "route_name":  "Las Vegas, NV to Henderson, NV",
+    "origin":  "Las Vegas, NV",
+    "destination":  "Henderson, NV",
+    "route_source":  "ors",
+    "route_candidate_count":  3,
+    "checkpoint_count_per_route":  8,
+    "total_checkpoint_task_count":  24,
+    "weather_mode":  "live",
+    "use_live_state_events":  true,
+    "state_codes":  [
+                        "NV"
+                    ],
+    "manual_road_event_count":  0,
+    "live_state_event_count":  83,
+    "active_state_event_count":  83,
+    "upcoming_state_event_count":  7,
+    "road_event_count":  83,
+    "upcoming_road_event_disclosure_count":  0,
+    "upcoming_road_event_disclosures":  [
+
+                                        ],
+    "road_event_radius_miles":  1.0,
+    "routes":  [
+                   {
+                       "route_id":  "ors-route-1",
+                       "route_label":  "ORS Alternative Route 1",
+                       "route_status":  "READY",
+                       "source":  "ors",
+                       "provider":  "heigit-openrouteservice",
+                       "distance_meters":  25833.9,
+                       "duration_seconds":  1362.2,
+                       "geometry_point_count":  265,
+                       "checkpoint_count":  8,
+                       "matched_road_event_checkpoint_count":  0,
+                       "matched_upcoming_road_event_checkpoint_count":  0,
+                       "upcoming_road_event_count":  0,
+                       "upcoming_road_events":  [
+
+                                                ],
+                       "route_risk_score":  0,
+                       "route_risk_level":  "Low",
+                       "route_blocked":  false,
+                       "route_warning":  null,
+                       "average_segment_score":  0,
+                       "highest_risk_segment":  {
+                                                    "task_id":  1,
+                                                    "workload":  "route_segment_risk",
+                                                    "weather_mode":  "live",
+                                                    "route_id":  "ors-route-1",
+                                                    "route_label":  "ORS Alternative Route 1",
+                                                    "segment_label":  "Route checkpoint 1",
+                                                    "latitude":  36.171585,
+                                                    "longitude":  -115.139064,
+                                                    "weather":  {
+                                                                    "temperature_f":  99.0,
+                                                                    "wind_mph":  20.6,
+                                                                    "condition":  "clear",
+                                                                    "visibility_miles":  null,
+                                                                    "source":  "open-meteo",
+                                                                    "raw_weather_code":  0
+                                                                },
+                                                    "road_condition":  "normal",
+                                                    "road_condition_source":  "fallback",
+                                                    "matched_road_event":  null,
+                                                    "nearby_road_event_count":  0,
+                                                    "risk_score":  0,
+                                                    "risk_level":  "Low",
+                                                    "factors":  [
+
+                                                                ]
+                                                },
+                       "blocking_segments":  [
+
+                                             ],
+                       "blocking_segment_count":  0,
+                       "incomplete_task_count":  0,
+                       "summary":  "This route has a risk score of 0. No major risk factors were detected in the completed segment results.",
+                       "aggregated_route_risk":  {
+                                                     "route_risk_score":  0,
+                                                     "route_risk_level":  "Low",
+                                                     "route_blocked":  false,
+                                                     "route_warning":  null,
+                                                     "average_segment_score":  0,
+                                                     "highest_risk_segment":  {
+                                                                                  "task_id":  1,
+                                                                                  "workload":  "route_segment_risk",
+                                                                                  "weather_mode":  "live",
+                                                                                  "route_id":  "ors-route-1",
+                                                                                  "route_label":  "ORS Alternative Route 1",
+                                                                                  "segment_label":  "Route checkpoint 1",
+                                                                                  "latitude":  36.171585,
+                                                                                  "longitude":  -115.139064,
+                                                                                  "weather":  {
+                                                                                                  "temperature_f":  99.0,
+                                                                                                  "wind_mph":  20.6,
+                                                                                                  "condition":  "clear",
+                                                                                                  "visibility_miles":  null,
+                                                                                                  "source":  "open-meteo",
+                                                                                                  "raw_weather_code":  0
+                                                                                              },
+                                                                                  "road_condition":  "normal",
+                                                                                  "road_condition_source":  "fallback",
+                                                                                  "matched_road_event":  null,
+                                                                                  "nearby_road_event_count":  0,
+                                                                                  "risk_score":  0,
+                                                                                  "risk_level":  "Low",
+                                                                                  "factors":  [
+
+                                                                                              ]
+                                                                              },
+                                                     "blocking_segments":  [
+
+                                                                           ],
+                                                     "segment_results":  [
+                                                                             {
+                                                                                 "task_id":  1,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 1",
+                                                                                 "latitude":  36.171585,
+                                                                                 "longitude":  -115.139064,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  99.0,
+                                                                                                 "wind_mph":  20.6,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  2,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 2",
+                                                                                 "latitude":  36.167591,
+                                                                                 "longitude":  -115.105278,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.2,
+                                                                                                 "wind_mph":  20.4,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  3,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 3",
+                                                                                 "latitude":  36.135355,
+                                                                                 "longitude":  -115.090343,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.2,
+                                                                                                 "wind_mph":  18.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  4,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 4",
+                                                                                 "latitude":  36.096436,
+                                                                                 "longitude":  -115.079555,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  99.8,
+                                                                                                 "wind_mph":  15.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  5,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 5",
+                                                                                 "latitude":  36.060989,
+                                                                                 "longitude":  -115.030352,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  101.0,
+                                                                                                 "wind_mph":  16.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  6,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 6",
+                                                                                 "latitude":  36.033985,
+                                                                                 "longitude":  -115.010065,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.2,
+                                                                                                 "wind_mph":  19.3,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  7,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 7",
+                                                                                 "latitude":  36.036459,
+                                                                                 "longitude":  -114.990414,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.4,
+                                                                                                 "wind_mph":  18.3,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  8,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-1",
+                                                                                 "route_label":  "ORS Alternative Route 1",
+                                                                                 "segment_label":  "Route checkpoint 8",
+                                                                                 "latitude":  36.039495,
+                                                                                 "longitude":  -114.981707,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.5,
+                                                                                                 "wind_mph":  18.1,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             }
+                                                                         ],
+                                                     "summary":  "This route has a risk score of 0. No major risk factors were detected in the completed segment results.",
+                                                     "incomplete_task_count":  0
+                                                 }
+                   },
+                   {
+                       "route_id":  "ors-route-2",
+                       "route_label":  "ORS Alternative Route 2",
+                       "route_status":  "READY",
+                       "source":  "ors",
+                       "provider":  "heigit-openrouteservice",
+                       "distance_meters":  24855.1,
+                       "duration_seconds":  1385.1,
+                       "geometry_point_count":  255,
+                       "checkpoint_count":  8,
+                       "matched_road_event_checkpoint_count":  2,
+                       "matched_upcoming_road_event_checkpoint_count":  0,
+                       "upcoming_road_event_count":  0,
+                       "upcoming_road_events":  [
+
+                                                ],
+                       "route_risk_score":  2,
+                       "route_risk_level":  "Low",
+                       "route_blocked":  false,
+                       "route_warning":  null,
+                       "average_segment_score":  2,
+                       "highest_risk_segment":  {
+                                                    "task_id":  13,
+                                                    "workload":  "route_segment_risk",
+                                                    "weather_mode":  "live",
+                                                    "route_id":  "ors-route-2",
+                                                    "route_label":  "ORS Alternative Route 2",
+                                                    "segment_label":  "Route checkpoint 5",
+                                                    "latitude":  36.071762,
+                                                    "longitude":  -115.036914,
+                                                    "weather":  {
+                                                                    "temperature_f":  100.8,
+                                                                    "wind_mph":  16.5,
+                                                                    "condition":  "clear",
+                                                                    "visibility_miles":  null,
+                                                                    "source":  "open-meteo",
+                                                                    "raw_weather_code":  0
+                                                                },
+                                                    "road_condition":  "construction",
+                                                    "road_condition_source":  "nevada-511-events",
+                                                    "matched_road_event":  {
+                                                                               "event_id":  "nevada-511-238776",
+                                                                               "event_type":  "construction",
+                                                                               "description":  "Utility work on SR-582/Boulder Hwy  Southbound near Gibson Rd-Broadbent Blvd. Start time: 6/22/2026 7:00 AM.  End time: 7/31/2026 3:30 AM.  Public Details: Reduced lanes and sidewalk closure for roadway improvements. Use caution and expect delays. .",
+                                                                               "latitude":  36.078752718348,
+                                                                               "longitude":  -115.026314414128,
+                                                                               "distance_miles":  0.764,
+                                                                               "road_condition":  "construction",
+                                                                               "source":  "nevada-511-events"
+                                                                           },
+                                                    "nearby_road_event_count":  1,
+                                                    "risk_score":  15,
+                                                    "risk_level":  "Low",
+                                                    "factors":  [
+                                                                    "construction"
+                                                                ]
+                                                },
+                       "blocking_segments":  [
+
+                                             ],
+                       "blocking_segment_count":  0,
+                       "incomplete_task_count":  0,
+                       "summary":  "This route has an overall risk score of 2. The highest-risk segment is Route checkpoint 5 with a score of 15 (Low). The main risk factors are: construction.",
+                       "aggregated_route_risk":  {
+                                                     "route_risk_score":  2,
+                                                     "route_risk_level":  "Low",
+                                                     "route_blocked":  false,
+                                                     "route_warning":  null,
+                                                     "average_segment_score":  2,
+                                                     "highest_risk_segment":  {
+                                                                                  "task_id":  13,
+                                                                                  "workload":  "route_segment_risk",
+                                                                                  "weather_mode":  "live",
+                                                                                  "route_id":  "ors-route-2",
+                                                                                  "route_label":  "ORS Alternative Route 2",
+                                                                                  "segment_label":  "Route checkpoint 5",
+                                                                                  "latitude":  36.071762,
+                                                                                  "longitude":  -115.036914,
+                                                                                  "weather":  {
+                                                                                                  "temperature_f":  100.8,
+                                                                                                  "wind_mph":  16.5,
+                                                                                                  "condition":  "clear",
+                                                                                                  "visibility_miles":  null,
+                                                                                                  "source":  "open-meteo",
+                                                                                                  "raw_weather_code":  0
+                                                                                              },
+                                                                                  "road_condition":  "construction",
+                                                                                  "road_condition_source":  "nevada-511-events",
+                                                                                  "matched_road_event":  {
+                                                                                                             "event_id":  "nevada-511-238776",
+                                                                                                             "event_type":  "construction",
+                                                                                                             "description":  "Utility work on SR-582/Boulder Hwy  Southbound near Gibson Rd-Broadbent Blvd. Start time: 6/22/2026 7:00 AM.  End time: 7/31/2026 3:30 AM.  Public Details: Reduced lanes and sidewalk closure for roadway improvements. Use caution and expect delays. .",
+                                                                                                             "latitude":  36.078752718348,
+                                                                                                             "longitude":  -115.026314414128,
+                                                                                                             "distance_miles":  0.764,
+                                                                                                             "road_condition":  "construction",
+                                                                                                             "source":  "nevada-511-events"
+                                                                                                         },
+                                                                                  "nearby_road_event_count":  1,
+                                                                                  "risk_score":  15,
+                                                                                  "risk_level":  "Low",
+                                                                                  "factors":  [
+                                                                                                  "construction"
+                                                                                              ]
+                                                                              },
+                                                     "blocking_segments":  [
+
+                                                                           ],
+                                                     "segment_results":  [
+                                                                             {
+                                                                                 "task_id":  9,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 1",
+                                                                                 "latitude":  36.171585,
+                                                                                 "longitude":  -115.139064,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  99.0,
+                                                                                                 "wind_mph":  20.6,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  10,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 2",
+                                                                                 "latitude":  36.167744,
+                                                                                 "longitude":  -115.111514,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.1,
+                                                                                                 "wind_mph":  20.4,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  11,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 3",
+                                                                                 "latitude":  36.141534,
+                                                                                 "longitude":  -115.091287,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.3,
+                                                                                                 "wind_mph":  18.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  12,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 4",
+                                                                                 "latitude":  36.098413,
+                                                                                 "longitude":  -115.081029,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  99.8,
+                                                                                                 "wind_mph":  15.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  13,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 5",
+                                                                                 "latitude":  36.071762,
+                                                                                 "longitude":  -115.036914,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.8,
+                                                                                                 "wind_mph":  16.5,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "construction",
+                                                                                 "road_condition_source":  "nevada-511-events",
+                                                                                 "matched_road_event":  {
+                                                                                                            "event_id":  "nevada-511-238776",
+                                                                                                            "event_type":  "construction",
+                                                                                                            "description":  "Utility work on SR-582/Boulder Hwy  Southbound near Gibson Rd-Broadbent Blvd. Start time: 6/22/2026 7:00 AM.  End time: 7/31/2026 3:30 AM.  Public Details: Reduced lanes and sidewalk closure for roadway improvements. Use caution and expect delays. .",
+                                                                                                            "latitude":  36.078752718348,
+                                                                                                            "longitude":  -115.026314414128,
+                                                                                                            "distance_miles":  0.764,
+                                                                                                            "road_condition":  "construction",
+                                                                                                            "source":  "nevada-511-events"
+                                                                                                        },
+                                                                                 "nearby_road_event_count":  1,
+                                                                                 "risk_score":  15,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+                                                                                                 "construction"
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  14,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 6",
+                                                                                 "latitude":  36.063972,
+                                                                                 "longitude":  -115.014415,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  101.3,
+                                                                                                 "wind_mph":  16.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  15,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 7",
+                                                                                 "latitude":  36.054536,
+                                                                                 "longitude":  -114.999063,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  101.1,
+                                                                                                 "wind_mph":  18.2,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "nevada-511-events",
+                                                                                 "matched_road_event":  {
+                                                                                                            "event_id":  "nevada-511-241805",
+                                                                                                            "event_type":  "incident",
+                                                                                                            "description":  "Silver Alert on King St near Boulder Hwy . Start time: 6/26/2026 2:55 AM.  Public Details: Name - Michael Hitchcock; Age - 77 yrs; Height - 5.6\"; Weight - 110 lbs; Hair - Short Gray; Eyes - Hazel. Facial hair - Mustache and Beard. Last seen near King St and Boulder Hwy driving a 2021 Blue Jeep Renegade; NV Plate - PHL0350. Last seen wearing a white shirt with a mad scientist logo on the front, blue jeans, and blue Skechers slides. If seen, call 911 or Henderson Police at 702-267-4750.",
+                                                                                                            "latitude":  36.0551173283847,
+                                                                                                            "longitude":  -114.999282873842,
+                                                                                                            "distance_miles":  0.042,
+                                                                                                            "road_condition":  "normal",
+                                                                                                            "source":  "nevada-511-events"
+                                                                                                        },
+                                                                                 "nearby_road_event_count":  1,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  16,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-2",
+                                                                                 "route_label":  "ORS Alternative Route 2",
+                                                                                 "segment_label":  "Route checkpoint 8",
+                                                                                 "latitude":  36.039495,
+                                                                                 "longitude":  -114.981707,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.5,
+                                                                                                 "wind_mph":  18.1,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             }
+                                                                         ],
+                                                     "summary":  "This route has an overall risk score of 2. The highest-risk segment is Route checkpoint 5 with a score of 15 (Low). The main risk factors are: construction.",
+                                                     "incomplete_task_count":  0
+                                                 }
+                   },
+                   {
+                       "route_id":  "ors-route-3",
+                       "route_label":  "ORS Alternative Route 3",
+                       "route_status":  "READY",
+                       "source":  "ors",
+                       "provider":  "heigit-openrouteservice",
+                       "distance_meters":  24743.7,
+                       "duration_seconds":  1394.9,
+                       "geometry_point_count":  254,
+                       "checkpoint_count":  8,
+                       "matched_road_event_checkpoint_count":  2,
+                       "matched_upcoming_road_event_checkpoint_count":  0,
+                       "upcoming_road_event_count":  0,
+                       "upcoming_road_events":  [
+
+                                                ],
+                       "route_risk_score":  2,
+                       "route_risk_level":  "Low",
+                       "route_blocked":  false,
+                       "route_warning":  null,
+                       "average_segment_score":  2,
+                       "highest_risk_segment":  {
+                                                    "task_id":  21,
+                                                    "workload":  "route_segment_risk",
+                                                    "weather_mode":  "live",
+                                                    "route_id":  "ors-route-3",
+                                                    "route_label":  "ORS Alternative Route 3",
+                                                    "segment_label":  "Route checkpoint 5",
+                                                    "latitude":  36.071762,
+                                                    "longitude":  -115.036914,
+                                                    "weather":  {
+                                                                    "temperature_f":  100.8,
+                                                                    "wind_mph":  16.5,
+                                                                    "condition":  "clear",
+                                                                    "visibility_miles":  null,
+                                                                    "source":  "open-meteo",
+                                                                    "raw_weather_code":  0
+                                                                },
+                                                    "road_condition":  "construction",
+                                                    "road_condition_source":  "nevada-511-events",
+                                                    "matched_road_event":  {
+                                                                               "event_id":  "nevada-511-238776",
+                                                                               "event_type":  "construction",
+                                                                               "description":  "Utility work on SR-582/Boulder Hwy  Southbound near Gibson Rd-Broadbent Blvd. Start time: 6/22/2026 7:00 AM.  End time: 7/31/2026 3:30 AM.  Public Details: Reduced lanes and sidewalk closure for roadway improvements. Use caution and expect delays. .",
+                                                                               "latitude":  36.078752718348,
+                                                                               "longitude":  -115.026314414128,
+                                                                               "distance_miles":  0.764,
+                                                                               "road_condition":  "construction",
+                                                                               "source":  "nevada-511-events"
+                                                                           },
+                                                    "nearby_road_event_count":  1,
+                                                    "risk_score":  15,
+                                                    "risk_level":  "Low",
+                                                    "factors":  [
+                                                                    "construction"
+                                                                ]
+                                                },
+                       "blocking_segments":  [
+
+                                             ],
+                       "blocking_segment_count":  0,
+                       "incomplete_task_count":  0,
+                       "summary":  "This route has an overall risk score of 2. The highest-risk segment is Route checkpoint 5 with a score of 15 (Low). The main risk factors are: construction.",
+                       "aggregated_route_risk":  {
+                                                     "route_risk_score":  2,
+                                                     "route_risk_level":  "Low",
+                                                     "route_blocked":  false,
+                                                     "route_warning":  null,
+                                                     "average_segment_score":  2,
+                                                     "highest_risk_segment":  {
+                                                                                  "task_id":  21,
+                                                                                  "workload":  "route_segment_risk",
+                                                                                  "weather_mode":  "live",
+                                                                                  "route_id":  "ors-route-3",
+                                                                                  "route_label":  "ORS Alternative Route 3",
+                                                                                  "segment_label":  "Route checkpoint 5",
+                                                                                  "latitude":  36.071762,
+                                                                                  "longitude":  -115.036914,
+                                                                                  "weather":  {
+                                                                                                  "temperature_f":  100.8,
+                                                                                                  "wind_mph":  16.5,
+                                                                                                  "condition":  "clear",
+                                                                                                  "visibility_miles":  null,
+                                                                                                  "source":  "open-meteo",
+                                                                                                  "raw_weather_code":  0
+                                                                                              },
+                                                                                  "road_condition":  "construction",
+                                                                                  "road_condition_source":  "nevada-511-events",
+                                                                                  "matched_road_event":  {
+                                                                                                             "event_id":  "nevada-511-238776",
+                                                                                                             "event_type":  "construction",
+                                                                                                             "description":  "Utility work on SR-582/Boulder Hwy  Southbound near Gibson Rd-Broadbent Blvd. Start time: 6/22/2026 7:00 AM.  End time: 7/31/2026 3:30 AM.  Public Details: Reduced lanes and sidewalk closure for roadway improvements. Use caution and expect delays. .",
+                                                                                                             "latitude":  36.078752718348,
+                                                                                                             "longitude":  -115.026314414128,
+                                                                                                             "distance_miles":  0.764,
+                                                                                                             "road_condition":  "construction",
+                                                                                                             "source":  "nevada-511-events"
+                                                                                                         },
+                                                                                  "nearby_road_event_count":  1,
+                                                                                  "risk_score":  15,
+                                                                                  "risk_level":  "Low",
+                                                                                  "factors":  [
+                                                                                                  "construction"
+                                                                                              ]
+                                                                              },
+                                                     "blocking_segments":  [
+
+                                                                           ],
+                                                     "segment_results":  [
+                                                                             {
+                                                                                 "task_id":  17,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 1",
+                                                                                 "latitude":  36.171585,
+                                                                                 "longitude":  -115.139064,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  99.0,
+                                                                                                 "wind_mph":  20.6,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  18,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 2",
+                                                                                 "latitude":  36.167744,
+                                                                                 "longitude":  -115.111514,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.1,
+                                                                                                 "wind_mph":  20.4,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  19,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 3",
+                                                                                 "latitude":  36.141971,
+                                                                                 "longitude":  -115.091322,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.3,
+                                                                                                 "wind_mph":  18.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  20,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 4",
+                                                                                 "latitude":  36.098937,
+                                                                                 "longitude":  -115.081316,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  99.8,
+                                                                                                 "wind_mph":  15.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  21,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 5",
+                                                                                 "latitude":  36.071762,
+                                                                                 "longitude":  -115.036914,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.8,
+                                                                                                 "wind_mph":  16.5,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "construction",
+                                                                                 "road_condition_source":  "nevada-511-events",
+                                                                                 "matched_road_event":  {
+                                                                                                            "event_id":  "nevada-511-238776",
+                                                                                                            "event_type":  "construction",
+                                                                                                            "description":  "Utility work on SR-582/Boulder Hwy  Southbound near Gibson Rd-Broadbent Blvd. Start time: 6/22/2026 7:00 AM.  End time: 7/31/2026 3:30 AM.  Public Details: Reduced lanes and sidewalk closure for roadway improvements. Use caution and expect delays. .",
+                                                                                                            "latitude":  36.078752718348,
+                                                                                                            "longitude":  -115.026314414128,
+                                                                                                            "distance_miles":  0.764,
+                                                                                                            "road_condition":  "construction",
+                                                                                                            "source":  "nevada-511-events"
+                                                                                                        },
+                                                                                 "nearby_road_event_count":  1,
+                                                                                 "risk_score":  15,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+                                                                                                 "construction"
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  22,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 6",
+                                                                                 "latitude":  36.063972,
+                                                                                 "longitude":  -115.014415,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  101.3,
+                                                                                                 "wind_mph":  16.8,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  23,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 7",
+                                                                                 "latitude":  36.054536,
+                                                                                 "longitude":  -114.999063,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  101.1,
+                                                                                                 "wind_mph":  18.2,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "nevada-511-events",
+                                                                                 "matched_road_event":  {
+                                                                                                            "event_id":  "nevada-511-241805",
+                                                                                                            "event_type":  "incident",
+                                                                                                            "description":  "Silver Alert on King St near Boulder Hwy . Start time: 6/26/2026 2:55 AM.  Public Details: Name - Michael Hitchcock; Age - 77 yrs; Height - 5.6\"; Weight - 110 lbs; Hair - Short Gray; Eyes - Hazel. Facial hair - Mustache and Beard. Last seen near King St and Boulder Hwy driving a 2021 Blue Jeep Renegade; NV Plate - PHL0350. Last seen wearing a white shirt with a mad scientist logo on the front, blue jeans, and blue Skechers slides. If seen, call 911 or Henderson Police at 702-267-4750.",
+                                                                                                            "latitude":  36.0551173283847,
+                                                                                                            "longitude":  -114.999282873842,
+                                                                                                            "distance_miles":  0.042,
+                                                                                                            "road_condition":  "normal",
+                                                                                                            "source":  "nevada-511-events"
+                                                                                                        },
+                                                                                 "nearby_road_event_count":  1,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             },
+                                                                             {
+                                                                                 "task_id":  24,
+                                                                                 "workload":  "route_segment_risk",
+                                                                                 "weather_mode":  "live",
+                                                                                 "route_id":  "ors-route-3",
+                                                                                 "route_label":  "ORS Alternative Route 3",
+                                                                                 "segment_label":  "Route checkpoint 8",
+                                                                                 "latitude":  36.039495,
+                                                                                 "longitude":  -114.981707,
+                                                                                 "weather":  {
+                                                                                                 "temperature_f":  100.5,
+                                                                                                 "wind_mph":  18.1,
+                                                                                                 "condition":  "clear",
+                                                                                                 "visibility_miles":  null,
+                                                                                                 "source":  "open-meteo",
+                                                                                                 "raw_weather_code":  0
+                                                                                             },
+                                                                                 "road_condition":  "normal",
+                                                                                 "road_condition_source":  "fallback",
+                                                                                 "matched_road_event":  null,
+                                                                                 "nearby_road_event_count":  0,
+                                                                                 "risk_score":  0,
+                                                                                 "risk_level":  "Low",
+                                                                                 "factors":  [
+
+                                                                                             ]
+                                                                             }
+                                                                         ],
+                                                     "summary":  "This route has an overall risk score of 2. The highest-risk segment is Route checkpoint 5 with a score of 15 (Low). The main risk factors are: construction.",
+                                                     "incomplete_task_count":  0
+                                                 }
+                   }
+               ],
+    "recommended_route":  {
+                              "route_id":  "ors-route-1",
+                              "route_label":  "ORS Alternative Route 1",
+                              "route_status":  "READY",
+                              "source":  "ors",
+                              "provider":  "heigit-openrouteservice",
+                              "distance_meters":  25833.9,
+                              "duration_seconds":  1362.2,
+                              "geometry_point_count":  265,
+                              "checkpoint_count":  8,
+                              "matched_road_event_checkpoint_count":  0,
+                              "matched_upcoming_road_event_checkpoint_count":  0,
+                              "upcoming_road_event_count":  0,
+                              "upcoming_road_events":  [
+
+                                                       ],
+                              "route_risk_score":  0,
+                              "route_risk_level":  "Low",
+                              "route_blocked":  false,
+                              "route_warning":  null,
+                              "average_segment_score":  0,
+                              "highest_risk_segment":  {
+                                                           "task_id":  1,
+                                                           "workload":  "route_segment_risk",
+                                                           "weather_mode":  "live",
+                                                           "route_id":  "ors-route-1",
+                                                           "route_label":  "ORS Alternative Route 1",
+                                                           "segment_label":  "Route checkpoint 1",
+                                                           "latitude":  36.171585,
+                                                           "longitude":  -115.139064,
+                                                           "weather":  {
+                                                                           "temperature_f":  99.0,
+                                                                           "wind_mph":  20.6,
+                                                                           "condition":  "clear",
+                                                                           "visibility_miles":  null,
+                                                                           "source":  "open-meteo",
+                                                                           "raw_weather_code":  0
+                                                                       },
+                                                           "road_condition":  "normal",
+                                                           "road_condition_source":  "fallback",
+                                                           "matched_road_event":  null,
+                                                           "nearby_road_event_count":  0,
+                                                           "risk_score":  0,
+                                                           "risk_level":  "Low",
+                                                           "factors":  [
+
+                                                                       ]
+                                                       },
+                              "blocking_segments":  [
+
+                                                    ],
+                              "blocking_segment_count":  0,
+                              "incomplete_task_count":  0,
+                              "summary":  "This route has a risk score of 0. No major risk factors were detected in the completed segment results.",
+                              "aggregated_route_risk":  {
+                                                            "route_risk_score":  0,
+                                                            "route_risk_level":  "Low",
+                                                            "route_blocked":  false,
+                                                            "route_warning":  null,
+                                                            "average_segment_score":  0,
+                                                            "highest_risk_segment":  {
+                                                                                         "task_id":  1,
+                                                                                         "workload":  "route_segment_risk",
+                                                                                         "weather_mode":  "live",
+                                                                                         "route_id":  "ors-route-1",
+                                                                                         "route_label":  "ORS Alternative Route 1",
+                                                                                         "segment_label":  "Route checkpoint 1",
+                                                                                         "latitude":  36.171585,
+                                                                                         "longitude":  -115.139064,
+                                                                                         "weather":  {
+                                                                                                         "temperature_f":  99.0,
+                                                                                                         "wind_mph":  20.6,
+                                                                                                         "condition":  "clear",
+                                                                                                         "visibility_miles":  null,
+                                                                                                         "source":  "open-meteo",
+                                                                                                         "raw_weather_code":  0
+                                                                                                     },
+                                                                                         "road_condition":  "normal",
+                                                                                         "road_condition_source":  "fallback",
+                                                                                         "matched_road_event":  null,
+                                                                                         "nearby_road_event_count":  0,
+                                                                                         "risk_score":  0,
+                                                                                         "risk_level":  "Low",
+                                                                                         "factors":  [
+
+                                                                                                     ]
+                                                                                     },
+                                                            "blocking_segments":  [
+
+                                                                                  ],
+                                                            "segment_results":  [
+                                                                                    {
+                                                                                        "task_id":  1,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 1",
+                                                                                        "latitude":  36.171585,
+                                                                                        "longitude":  -115.139064,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  99.0,
+                                                                                                        "wind_mph":  20.6,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  2,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 2",
+                                                                                        "latitude":  36.167591,
+                                                                                        "longitude":  -115.105278,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  100.2,
+                                                                                                        "wind_mph":  20.4,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  3,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 3",
+                                                                                        "latitude":  36.135355,
+                                                                                        "longitude":  -115.090343,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  100.2,
+                                                                                                        "wind_mph":  18.8,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  4,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 4",
+                                                                                        "latitude":  36.096436,
+                                                                                        "longitude":  -115.079555,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  99.8,
+                                                                                                        "wind_mph":  15.8,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  5,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 5",
+                                                                                        "latitude":  36.060989,
+                                                                                        "longitude":  -115.030352,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  101.0,
+                                                                                                        "wind_mph":  16.8,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  6,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 6",
+                                                                                        "latitude":  36.033985,
+                                                                                        "longitude":  -115.010065,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  100.2,
+                                                                                                        "wind_mph":  19.3,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  7,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 7",
+                                                                                        "latitude":  36.036459,
+                                                                                        "longitude":  -114.990414,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  100.4,
+                                                                                                        "wind_mph":  18.3,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    },
+                                                                                    {
+                                                                                        "task_id":  8,
+                                                                                        "workload":  "route_segment_risk",
+                                                                                        "weather_mode":  "live",
+                                                                                        "route_id":  "ors-route-1",
+                                                                                        "route_label":  "ORS Alternative Route 1",
+                                                                                        "segment_label":  "Route checkpoint 8",
+                                                                                        "latitude":  36.039495,
+                                                                                        "longitude":  -114.981707,
+                                                                                        "weather":  {
+                                                                                                        "temperature_f":  100.5,
+                                                                                                        "wind_mph":  18.1,
+                                                                                                        "condition":  "clear",
+                                                                                                        "visibility_miles":  null,
+                                                                                                        "source":  "open-meteo",
+                                                                                                        "raw_weather_code":  0
+                                                                                                    },
+                                                                                        "road_condition":  "normal",
+                                                                                        "road_condition_source":  "fallback",
+                                                                                        "matched_road_event":  null,
+                                                                                        "nearby_road_event_count":  0,
+                                                                                        "risk_score":  0,
+                                                                                        "risk_level":  "Low",
+                                                                                        "factors":  [
+
+                                                                                                    ]
+                                                                                    }
+                                                                                ],
+                                                            "summary":  "This route has a risk score of 0. No major risk factors were detected in the completed segment results.",
+                                                            "incomplete_task_count":  0
+                                                        }
+                          }
+}

@@ -388,10 +388,6 @@ def build_route_comparison_summary_response(
                 "geometry_point_count": route_metadata.get(
                     "geometry_point_count"
                 ),
-                "geometry_coordinates": route_metadata.get(
-                    "geometry_coordinates",
-                    [],
-                ),
                 "checkpoint_count": route_metadata.get(
                     "checkpoint_count"
                 ),
@@ -489,28 +485,6 @@ def build_route_comparison_summary_response(
         ),
         "route_candidate_count": len(
             scored_routes
-        ),
-        "generated_route_candidate_count": metadata.get(
-            "generated_route_candidate_count",
-            len(scored_routes),
-        ),
-        "unique_route_candidate_count": metadata.get(
-            "unique_route_candidate_count",
-            len(scored_routes),
-        ),
-        "duplicate_route_count": metadata.get(
-            "duplicate_route_count",
-            0,
-        ),
-        "duplicate_routes": metadata.get(
-            "duplicate_routes",
-            [],
-        ),
-        "route_similarity_threshold": metadata.get(
-            "route_similarity_threshold"
-        ),
-        "route_similarity_tolerance_miles": metadata.get(
-            "route_similarity_tolerance_miles"
         ),
         "checkpoint_count_per_route": metadata.get(
             "checkpoint_count_per_route"

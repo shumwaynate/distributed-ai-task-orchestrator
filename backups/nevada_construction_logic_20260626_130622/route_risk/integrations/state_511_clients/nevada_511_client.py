@@ -32,125 +32,14 @@ NEVADA_511_EVENTS_URL = (
 DEFAULT_UPCOMING_WINDOW_HOURS = 48.0
 
 
-def _coerce_nevada_boolean(value: Any) -> bool:
-    """
-    Convert Nevada API boolean-like values into an actual bool.
-
-    The API normally returns JSON booleans, but this also safely handles
-    strings such as "true" and "false".
-    """
-
-    if isinstance(value, bool):
-        return value
-
-    if value is None:
-        return False
-
-    if isinstance(value, (int, float)):
-        return value != 0
-
-    return str(value).strip().lower() in {
-        "true",
-        "1",
-        "yes",
-        "y",
-    }
-
-
-def classify_nevada_closure_scope(
-    event_type: Any,
-    event_subtype: Any = None,
-    is_full_closure: bool = False,
-    lanes_affected: Any = None,
-    description: Any = None,
-    comment: Any = None,
-) -> str:
-    """
-    Describe the scope of a Nevada closure without deciding route proximity.
-
-    Returned values:
-    - full
-    - ramp
-    - shoulder
-    - partial_lane
-    - partial_unspecified
-    - none
-
-    Only ``full`` is considered a route-blocking closure by the current
-    scoring system. Ramp and partial closures remain important, but they do
-    not prove that the route itself is impassable.
-    """
-
-    if is_full_closure:
-        return "full"
-
-    combined_text = " ".join(
-        str(value or "").strip().lower()
-        for value in (
-            event_type,
-            event_subtype,
-            lanes_affected,
-            description,
-            comment,
-        )
-    )
-
-    closure_language_present = any(
-        phrase in combined_text
-        for phrase in (
-            "closed",
-            "closure",
-            "closures",
-        )
-    )
-
-    if not closure_language_present:
-        return "none"
-
-    if "shoulder" in combined_text:
-        return "shoulder"
-
-    if "ramp" in combined_text:
-        return "ramp"
-
-    partial_lane_phrases = (
-        "1 lane",
-        "one lane",
-        "single lane",
-        "left lane",
-        "right lane",
-        "lane reduced",
-        "lanes reduced",
-        "reduced lanes",
-        "lane affected",
-        "lanes affected",
-        "flagging",
-    )
-
-    if any(
-        phrase in combined_text
-        for phrase in partial_lane_phrases
-    ):
-        return "partial_lane"
-
-    return "partial_unspecified"
-
-
 def normalize_nevada_event_type(
     event_type: Any,
     event_subtype: Any = None,
     is_full_closure: bool = False,
-    lanes_affected: Any = None,
-    description: Any = None,
-    comment: Any = None,
 ) -> str:
     """
-    Convert Nevada 511 events into common Route Risk Engine event names.
-
-    Nevada's explicit ``IsFullClosure`` value is authoritative for blocking.
-    A lane closure, ramp closure, shoulder closure, or generic Closures
-    category with ``IsFullClosure == False`` is treated as construction so
-    it can raise risk without forcing the entire route to Blocked.
+    Convert Nevada 511 event types into the common event names used by
+    the Route Risk Engine.
     """
 
     normalized_type = str(
@@ -164,22 +53,14 @@ def normalize_nevada_event_type(
     if is_full_closure:
         return "road closure"
 
-    closure_scope = classify_nevada_closure_scope(
-        event_type=event_type,
-        event_subtype=event_subtype,
-        is_full_closure=is_full_closure,
-        lanes_affected=lanes_affected,
-        description=description,
-        comment=comment,
-    )
+    if normalized_type == "closures":
+        return "road closure"
 
     if (
-        normalized_type == "closures"
-        or "closure" in normalized_type
+        "closure" in normalized_type
         or "closure" in normalized_subtype
-        or closure_scope != "none"
     ):
-        return "construction"
+        return "road closure"
 
     if normalized_type == "roadwork":
         return "construction"
@@ -209,7 +90,6 @@ def normalize_nevada_event_type(
         return "incident"
 
     return "caution"
-
 
 
 def _parse_unix_timestamp(
@@ -369,53 +249,23 @@ def normalize_nevada_511_event(
 
     The primary latitude and longitude are used for checkpoint matching.
     Nevada-specific fields and timing information are preserved.
-
-    Blocking behavior:
-    - IsFullClosure == True -> road closure / blocking
-    - IsFullClosure == False -> non-blocking construction or caution
     """
 
     event_id = raw_event.get("ID")
     event_type = raw_event.get("EventType")
     event_subtype = raw_event.get("EventSubType")
-    lanes_affected = raw_event.get("LanesAffected")
 
-    is_full_closure = _coerce_nevada_boolean(
+    is_full_closure = bool(
         raw_event.get(
             "IsFullClosure",
             False,
         )
     )
 
-    description = str(
-        raw_event.get("Description") or ""
-    ).strip()
-
-    comment = str(
-        raw_event.get("Comment") or ""
-    ).strip()
-
-    closure_scope = classify_nevada_closure_scope(
-        event_type=event_type,
-        event_subtype=event_subtype,
-        is_full_closure=is_full_closure,
-        lanes_affected=lanes_affected,
-        description=description,
-        comment=comment,
-    )
-
-    is_blocking_closure = (
-        is_full_closure
-        and closure_scope == "full"
-    )
-
     normalized_event_type = normalize_nevada_event_type(
         event_type=event_type,
         event_subtype=event_subtype,
         is_full_closure=is_full_closure,
-        lanes_affected=lanes_affected,
-        description=description,
-        comment=comment,
     )
 
     timing = classify_nevada_event_timing(
@@ -426,6 +276,14 @@ def normalize_nevada_511_event(
         reference_timestamp=reference_timestamp,
         upcoming_window_hours=upcoming_window_hours,
     )
+
+    description = str(
+        raw_event.get("Description") or ""
+    ).strip()
+
+    comment = str(
+        raw_event.get("Comment") or ""
+    ).strip()
 
     if not description and comment:
         description = comment
@@ -459,10 +317,7 @@ def normalize_nevada_511_event(
             "ends_in_hours"
         ],
 
-        "is_full_closure": is_full_closure,
-        "is_blocking_closure": is_blocking_closure,
-        "closure_scope": closure_scope,
-
+        # Nevada-specific context retained for later display and filtering.
         "source_event_id": event_id,
         "source_id": raw_event.get("SourceId"),
         "organization": raw_event.get(
@@ -475,8 +330,11 @@ def normalize_nevada_511_event(
             "DirectionOfTravel"
         ),
         "event_subtype": event_subtype,
+        "is_full_closure": is_full_closure,
         "severity": raw_event.get("Severity"),
-        "lanes_affected": lanes_affected,
+        "lanes_affected": raw_event.get(
+            "LanesAffected"
+        ),
         "reported_unix": raw_event.get(
             "Reported"
         ),
@@ -511,7 +369,6 @@ def normalize_nevada_511_event(
     }
 
 
-
 def fetch_raw_nevada_511_events(
     timeout_seconds: float = 20.0,
 ) -> List[Dict[str, Any]]:
@@ -541,364 +398,6 @@ def fetch_raw_nevada_511_events(
         )
 
     return response_data
-
-
-def _parse_nevada_clock_time(
-    value: Any,
-) -> Optional[Any]:
-    """Parse Nevada time text such as 20:00:00-07:00 or 8:00PM."""
-
-    import datetime as datetime_module
-    import re
-
-    text = str(value or "").strip()
-
-    if not text:
-        return None
-
-    twenty_four_hour_match = re.match(
-        r"^(\d{1,2}):(\d{2})(?::(\d{2}))?",
-        text,
-    )
-
-    if (
-        twenty_four_hour_match
-        and not re.search(
-            r"[ap]\.?m\.?",
-            text,
-            flags=re.IGNORECASE,
-        )
-    ):
-        hour = int(
-            twenty_four_hour_match.group(1)
-        )
-        minute = int(
-            twenty_four_hour_match.group(2)
-        )
-        second = int(
-            twenty_four_hour_match.group(3)
-            or 0
-        )
-
-        if (
-            0 <= hour <= 23
-            and 0 <= minute <= 59
-            and 0 <= second <= 59
-        ):
-            return datetime_module.time(
-                hour,
-                minute,
-                second,
-            )
-
-    compact_text = re.sub(
-        r"\.",
-        "",
-        text,
-    ).upper()
-
-    compact_text = re.sub(
-        r"\s+",
-        "",
-        compact_text,
-    )
-
-    for format_string in (
-        "%I:%M%p",
-        "%I%p",
-        "%I:%M:%S%p",
-    ):
-        try:
-            parsed = datetime_module.datetime.strptime(
-                compact_text,
-                format_string,
-            )
-
-            return parsed.time()
-
-        except ValueError:
-            continue
-
-    return None
-
-
-def _nevada_description_time_window(
-    event: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
-    """Extract an explicit recurring window from event text."""
-
-    import re
-
-    text = " ".join(
-        str(event.get(field_name) or "")
-        for field_name in (
-            "description",
-            "comment",
-            "recurrence",
-        )
-    )
-
-    normalized_text = re.sub(
-        r"\s+",
-        " ",
-        text,
-    ).strip()
-
-    time_pattern = (
-        r"(\d{1,2}(?::\d{2})?(?::\d{2})?"
-        r"\s*[ap]\.?m\.?)"
-    )
-
-    patterns = (
-        rf"(?:nightly|each night|every night).*?"
-        rf"(?:from|between)\s*{time_pattern}\s*"
-        rf"(?:-|â€“|â€”|to|and|through)\s*{time_pattern}",
-
-        rf"(?:from|between)\s*{time_pattern}\s*"
-        rf"(?:-|â€“|â€”|to|and|through)\s*{time_pattern}"
-        rf".*?(?:nightly|each night|every night)",
-
-        rf"(?:closed|closure|work|roadwork).*?"
-        rf"(?:from|between)\s*{time_pattern}\s*"
-        rf"(?:-|â€“|â€”|to|and|through)\s*{time_pattern}",
-    )
-
-    for pattern in patterns:
-        match = re.search(
-            pattern,
-            normalized_text,
-            flags=re.IGNORECASE,
-        )
-
-        if not match:
-            continue
-
-        start_time = _parse_nevada_clock_time(
-            match.group(1)
-        )
-
-        end_time = _parse_nevada_clock_time(
-            match.group(2)
-        )
-
-        if start_time and end_time:
-            return {
-                "start_time": start_time,
-                "end_time": end_time,
-                "source": "description",
-            }
-
-    return None
-
-
-def _nevada_schedule_time_window(
-    event: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
-    """Extract a non-all-day window from Nevada RecurrenceSchedules."""
-
-    schedules = event.get(
-        "recurrence_schedules"
-    )
-
-    if not isinstance(schedules, list):
-        return None
-
-    for schedule in schedules:
-        if not isinstance(schedule, dict):
-            continue
-
-        raw_days = schedule.get(
-            "DaysOfWeek"
-        )
-
-        days_of_week = (
-            {
-                str(day).strip().lower()
-                for day in raw_days
-            }
-            if isinstance(raw_days, list)
-            else set()
-        )
-
-        times = schedule.get("Times")
-
-        if not isinstance(times, list):
-            continue
-
-        for time_range in times:
-            if not isinstance(time_range, dict):
-                continue
-
-            start_time = _parse_nevada_clock_time(
-                time_range.get("StartTime")
-            )
-
-            end_time = _parse_nevada_clock_time(
-                time_range.get("EndTime")
-            )
-
-            if not start_time or not end_time:
-                continue
-
-            appears_all_day = (
-                start_time.hour == 0
-                and start_time.minute == 0
-                and end_time.hour == 23
-                and end_time.minute >= 59
-            )
-
-            if appears_all_day:
-                continue
-
-            return {
-                "start_time": start_time,
-                "end_time": end_time,
-                "days_of_week": days_of_week,
-                "source": "recurrence_schedules",
-            }
-
-    return None
-
-
-def _nevada_schedule_days(
-    event: Dict[str, Any],
-) -> set:
-    """Return schedule day names when supplied by Nevada."""
-
-    schedules = event.get(
-        "recurrence_schedules"
-    )
-
-    if not isinstance(schedules, list):
-        return set()
-
-    days = set()
-
-    for schedule in schedules:
-        if not isinstance(schedule, dict):
-            continue
-
-        raw_days = schedule.get(
-            "DaysOfWeek"
-        )
-
-        if not isinstance(raw_days, list):
-            continue
-
-        days.update(
-            str(day).strip().lower()
-            for day in raw_days
-        )
-
-    return days
-
-
-def _nevada_window_is_active(
-    local_datetime: Any,
-    start_time: Any,
-    end_time: Any,
-    days_of_week: set,
-) -> bool:
-    """Return whether Nevada-local time is inside the recurring window."""
-
-    import datetime as datetime_module
-
-    current_time = local_datetime.time()
-    current_day = local_datetime.strftime(
-        "%A"
-    ).lower()
-
-    previous_day = (
-        local_datetime
-        - datetime_module.timedelta(days=1)
-    ).strftime("%A").lower()
-
-    allowed_days = days_of_week or {
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    }
-
-    if start_time <= end_time:
-        return (
-            current_day in allowed_days
-            and start_time <= current_time < end_time
-        )
-
-    if current_time >= start_time:
-        return current_day in allowed_days
-
-    if current_time < end_time:
-        return previous_day in allowed_days
-
-    return False
-
-
-def _next_nevada_window_start(
-    local_datetime: Any,
-    start_time: Any,
-    days_of_week: set,
-) -> Optional[Any]:
-    """Find the next scheduled Nevada-local start within eight days."""
-
-    import datetime as datetime_module
-
-    allowed_days = days_of_week or {
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    }
-
-    for day_offset in range(0, 9):
-        candidate_date = (
-            local_datetime.date()
-            + datetime_module.timedelta(
-                days=day_offset
-            )
-        )
-
-        candidate_day = candidate_date.strftime(
-            "%A"
-        ).lower()
-
-        if candidate_day not in allowed_days:
-            continue
-
-        candidate = datetime_module.datetime.combine(
-            candidate_date,
-            start_time,
-            tzinfo=local_datetime.tzinfo,
-        )
-
-        if candidate > local_datetime:
-            return candidate
-
-    return None
-
-
-def apply_nevada_recurrence_timing(
-    event: Dict[str, Any],
-    reference_timestamp: Optional[float] = None,
-    upcoming_window_hours: float = DEFAULT_UPCOMING_WINDOW_HOURS,
-) -> Dict[str, Any]:
-    updated_event = dict(event)
-    updated_event.setdefault(
-        "recurrence_active_now",
-        None,
-    )
-    updated_event[
-        "recurrence_timing_mode"
-    ] = "selected_driving_period"
-    return updated_event
-
 
 
 def fetch_nevada_511_event_groups(
@@ -1115,5 +614,4 @@ if __name__ == "__main__":
     print_section_title(
         "END NEVADA 511 EVENT TIMING TEST"
     )
-
 

@@ -22,8 +22,6 @@ from route_risk.integrations.state_511_clients.state_event_loader import (
     fetch_state_event_groups,
     normalize_state_codes,
 )
-from route_risk.core.route_similarity import filter_near_duplicate_routes
-from route_risk.core.driving_period import apply_driving_period_to_events
 
 
 EventList = List[Dict[str, Any]]
@@ -408,25 +406,10 @@ def submit_comparison_job(
         *active_state_events,
     ]
 
-    generated_routes = route_candidates["routes"]
-
-    route_duplicate_filter = filter_near_duplicate_routes(
-        generated_routes,
-        similarity_threshold=0.94,
-        proximity_tolerance_miles=0.10,
-        maximum_sample_points=300,
-    )
-
-    routes = route_duplicate_filter["routes"]
-
+    routes = route_candidates["routes"]
     all_task_ids = []
     route_metadata_list = []
     global_task_number = 1
-
-    scoring_events = apply_driving_period_to_events(
-        scoring_events,
-        is_night=request.is_night,
-    )
 
     for route in routes:
         route_scoring_events = filter_road_events_for_route(
@@ -523,26 +506,6 @@ def submit_comparison_job(
         "route_source": route_candidates["source"],
         "provider": route_candidates["provider"],
         "route_candidate_count": len(routes),
-        "generated_route_candidate_count": (
-            route_duplicate_filter["generated_count"]
-        ),
-        "unique_route_candidate_count": (
-            route_duplicate_filter["unique_count"]
-        ),
-        "duplicate_route_count": (
-            route_duplicate_filter["duplicate_count"]
-        ),
-        "duplicate_routes": (
-            route_duplicate_filter["duplicate_routes"]
-        ),
-        "route_similarity_threshold": (
-            route_duplicate_filter["similarity_threshold"]
-        ),
-        "route_similarity_tolerance_miles": (
-            route_duplicate_filter[
-                "proximity_tolerance_miles"
-            ]
-        ),
         "checkpoint_count_per_route": request.checkpoint_count,
         "manual_road_event_count": len(manual_road_events),
         "live_state_event_count": len(active_state_events),
@@ -582,18 +545,6 @@ def submit_comparison_job(
         "origin": request.origin_label,
         "destination": request.destination_label,
         "route_candidate_count": len(routes),
-        "generated_route_candidate_count": (
-            route_duplicate_filter["generated_count"]
-        ),
-        "unique_route_candidate_count": (
-            route_duplicate_filter["unique_count"]
-        ),
-        "duplicate_route_count": (
-            route_duplicate_filter["duplicate_count"]
-        ),
-        "duplicate_routes": (
-            route_duplicate_filter["duplicate_routes"]
-        ),
         "checkpoint_count_per_route": request.checkpoint_count,
         "total_checkpoint_task_count": len(all_task_ids),
         "weather_mode": "live",

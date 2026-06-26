@@ -1,9 +1,10 @@
 """Configuration and secret-loading helpers.
 
 API keys are loaded from environment variables first. When an environment
-variable is unavailable, the project can fall back to an external key file.
+variable is unavailable, the project falls back to an external key file.
 
-Secret values must never be stored in the repository.
+Secret values must never be stored in the repository or copied into a Docker
+image.
 """
 
 import os
@@ -15,13 +16,19 @@ def _resolve_default_key_directory() -> Path:
     """Return a portable default directory for external API-key files."""
 
     candidates = [
+        # Read-only directory mounted by Docker Compose.
+        Path("/run/secrets/route-risk-keys"),
+
+        # Windows development locations.
         Path.home() / "OneDrive" / "Desktop" / "ORS Key",
         Path.home() / "Desktop" / "ORS Key",
+
+        # General cross-platform fallback.
         Path.home() / ".route-risk-keys",
     ]
 
     for candidate in candidates:
-        if candidate.exists():
+        if candidate.exists() and candidate.is_dir():
             return candidate
 
     return candidates[-1]
@@ -33,6 +40,7 @@ KEY_DIRECTORY = Path(
         str(_resolve_default_key_directory()),
     )
 ).expanduser()
+
 
 ORS_KEY_FILE_PATH = KEY_DIRECTORY / "ORSKey.txt"
 IDAHO_511_KEY_FILE_PATH = KEY_DIRECTORY / "Idaho511Key.txt"
@@ -108,9 +116,7 @@ def _get_api_key(
     service_name: str,
     accepted_labels: List[str],
 ) -> str:
-    """
-    Load a key from its environment variable, then fall back to a file.
-    """
+    """Load a key from its environment variable, then fall back to a file."""
 
     environment_value = os.getenv(
         environment_variable,

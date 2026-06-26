@@ -23,7 +23,6 @@ from route_risk.integrations.state_511_clients.state_event_loader import (
     normalize_state_codes,
 )
 from route_risk.core.route_similarity import filter_near_duplicate_routes
-from route_risk.core.driving_period import apply_driving_period_to_events
 
 
 EventList = List[Dict[str, Any]]
@@ -422,11 +421,6 @@ def submit_comparison_job(
     all_task_ids = []
     route_metadata_list = []
     global_task_number = 1
-
-    scoring_events = apply_driving_period_to_events(
-        scoring_events,
-        is_night=request.is_night,
-    )
 
     for route in routes:
         route_scoring_events = filter_road_events_for_route(
