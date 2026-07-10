@@ -1,0 +1,100 @@
+{
+  "generated_at_utc": "2026-07-10T18:26:51.958170+00:00",
+  "project_root": "C:\\Users\\nates\\Documents\\distributed-ai-task-orchestrator",
+  "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "arguments": {
+    "api_base_url": "http://127.0.0.1:8000",
+    "request_timeout": 45.0,
+    "job_timeout": 240.0,
+    "skip_api": false,
+    "skip_comparison": false,
+    "skip_long_route_check": false,
+    "no_report": false
+  },
+  "summary": {
+    "passed": 11,
+    "failed": 2,
+    "skipped": 0,
+    "overall_status": "FAIL"
+  },
+  "checks": [
+    {
+      "name": "Required project files",
+      "status": "PASS",
+      "detail": "Found all 26 required project files.",
+      "duration_seconds": 0.001
+    },
+    {
+      "name": "Python syntax compilation",
+      "status": "PASS",
+      "detail": "Python source compiled without syntax errors.",
+      "duration_seconds": 0.094
+    },
+    {
+      "name": "State 511 provider registry",
+      "status": "FAIL",
+      "detail": "No module named 'route_risk'",
+      "duration_seconds": 0.0
+    },
+    {
+      "name": "Automatic route-state detection",
+      "status": "FAIL",
+      "detail": "No module named 'app'",
+      "duration_seconds": 0.0
+    },
+    {
+      "name": "Day/Night schedule precedence",
+      "status": "PASS",
+      "detail": "route_risk.testing.manual_driving_period_precedence_test: All precedence regression checks passed.",
+      "duration_seconds": 0.043
+    },
+    {
+      "name": "Geometry-aware closure matching",
+      "status": "PASS",
+      "detail": "route_risk.testing.manual_geometry_aware_closure_test: All geometry-aware closure checks passed.",
+      "duration_seconds": 0.043
+    },
+    {
+      "name": "Nevada construction versus closure logic",
+      "status": "PASS",
+      "detail": "route_risk.testing.manual_nevada_construction_logic_test: All Nevada construction logic checks passed.",
+      "duration_seconds": 0.195
+    },
+    {
+      "name": "Near-duplicate route filtering",
+      "status": "PASS",
+      "detail": "route_risk.testing.manual_route_similarity_test: All route duplicate filtering checks passed.",
+      "duration_seconds": 0.065
+    },
+    {
+      "name": "Route-risk scaling evidence",
+      "status": "PASS",
+      "detail": "40 tasks: 1 worker to 8 workers produced 7.34x runtime speedup and 7.34x throughput; higher-worker runtime was 4.375s.",
+      "duration_seconds": 0.006
+    },
+    {
+      "name": "API health and capability",
+      "status": "PASS",
+      "detail": "API responded at http://127.0.0.1:8000; Single-route and multi-route comparison endpoints are available",
+      "duration_seconds": 0.038
+    },
+    {
+      "name": "Distributed single-route closure workflow",
+      "status": "PASS",
+      "detail": "Job 7113643c-cb14-4122-9bd9-373cf82b3964: 8/8 Celery tasks completed; closure produced Blocked score 100 with 1 blocking checkpoint(s).",
+      "duration_seconds": 8.009
+    },
+    {
+      "name": "Distributed route comparison and recommendation",
+      "status": "PASS",
+      "detail": "Job 7e9c2add-5223-477f-b8d0-b47e37057c35: evaluated 3 route(s), completed 18/18 tasks, and recommended ORS Alternative Route 1 (Low, score 0).",
+      "duration_seconds": 18.584
+    },
+    {
+      "name": "Friendly long-route limitation response",
+      "status": "PASS",
+      "detail": "Long alternative-route request returned the expected friendly HTTP 422 limitation response.",
+      "duration_seconds": 0.826
+    }
+  ]
+}
