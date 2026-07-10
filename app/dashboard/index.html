@@ -1720,5 +1720,602 @@
             }
         });
     </script>
+
+<!-- CHECKPOINT_MARKER_FEATURE_START -->
+<style id="checkpoint-marker-feature-styles">
+  .checkpoint-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+
+  .checkpoint-toggle {
+    min-width: 170px;
+    background: #e8edf5;
+    color: var(--text);
+  }
+
+  .checkpoint-toggle[aria-pressed="true"] {
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  .checkpoint-toggle-status {
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
+
+  .checkpoint-risk-tooltip {
+    max-width: 340px;
+    min-width: 235px;
+    white-space: normal;
+    line-height: 1.4;
+  }
+
+  .checkpoint-tooltip {
+    display: grid;
+    gap: 5px;
+  }
+
+  .checkpoint-tooltip-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #dbe3ee;
+  }
+
+  .checkpoint-tooltip-heading strong {
+    color: #172033;
+  }
+
+  .checkpoint-tooltip-risk {
+    flex: 0 0 auto;
+    font-size: 0.76rem;
+    font-weight: 800;
+  }
+
+  .checkpoint-tooltip-row {
+    color: #334155;
+    font-size: 0.82rem;
+  }
+
+  .checkpoint-tooltip-row strong {
+    color: #172033;
+  }
+
+  .checkpoint-tooltip-clear,
+  .checkpoint-tooltip-issue {
+    margin-top: 2px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    font-size: 0.8rem;
+  }
+
+  .checkpoint-tooltip-clear {
+    background: #ecfdf5;
+    color: #166534;
+    font-weight: 650;
+  }
+
+  .checkpoint-tooltip-issue {
+    background: #fff7ed;
+    color: #9a3412;
+  }
+
+  @media (max-width: 620px) {
+    .checkpoint-toggle,
+    .checkpoint-toggle-status {
+      width: 100%;
+    }
+  }
+</style>
+
+<script id="checkpoint-marker-feature">
+(() => {
+  "use strict";
+
+  const mapElement = document.getElementById("map");
+  const routeGridElement = document.getElementById("routeGrid");
+  const analyzeButtonElement = document.getElementById("analyzeButton");
+  const resetButtonElement = document.getElementById("resetButton");
+
+  if (
+    !mapElement ||
+    !routeGridElement ||
+    !analyzeButtonElement ||
+    !resetButtonElement ||
+    typeof L === "undefined" ||
+    typeof map === "undefined"
+  ) {
+    console.warn("Checkpoint markers could not initialize.");
+    return;
+  }
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "checkpoint-toolbar";
+  toolbar.setAttribute("aria-label", "Checkpoint visibility controls");
+  toolbar.innerHTML = `
+    <button
+      id="checkpointToggleButton"
+      class="checkpoint-toggle"
+      type="button"
+      aria-pressed="false"
+      disabled
+    >
+      Show checkpoints
+    </button>
+    <span id="checkpointToggleStatus" class="checkpoint-toggle-status">
+      Run a route analysis to make checkpoint details available.
+    </span>
+  `;
+  mapElement.parentElement.insertBefore(toolbar, mapElement);
+
+  const toggleButton = document.getElementById("checkpointToggleButton");
+  const toggleStatus = document.getElementById("checkpointToggleStatus");
+  const checkpointLayer = L.layerGroup();
+
+  let checkpointsVisible = false;
+  let latestComparison = null;
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function firstDefined(...values) {
+    return values.find(
+      (value) => value !== undefined && value !== null && value !== ""
+    );
+  }
+
+  function numericValue(...values) {
+    const value = firstDefined(...values);
+    if (value === undefined) {
+      return null;
+    }
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function formatNumber(value, decimals = 1) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toFixed(decimals) : null;
+  }
+
+  function selectedRouteIndex() {
+    if (
+      typeof activeRouteIndex !== "undefined" &&
+      Number.isInteger(activeRouteIndex) &&
+      activeRouteIndex >= 0
+    ) {
+      return activeRouteIndex;
+    }
+
+    const cards = Array.from(routeGridElement.querySelectorAll(".route-card"));
+    const activeCard = routeGridElement.querySelector(".route-card.active");
+    const cardIndex = cards.indexOf(activeCard);
+    return cardIndex >= 0 ? cardIndex : 0;
+  }
+
+  function selectedRoute() {
+    const routes = latestComparison?.routes;
+    if (!Array.isArray(routes) || routes.length === 0) {
+      return null;
+    }
+    return routes[selectedRouteIndex()] ?? routes[0];
+  }
+
+  function checkpointResults(route) {
+    const results =
+      route?.aggregated_route_risk?.segment_results ??
+      route?.segment_results ??
+      [];
+    return Array.isArray(results) ? results : [];
+  }
+
+  function checkpointCoordinates(checkpoint) {
+    const coordinates = Array.isArray(checkpoint?.coordinates)
+      ? checkpoint.coordinates
+      : null;
+
+    const latitude = numericValue(
+      checkpoint?.latitude,
+      checkpoint?.lat,
+      checkpoint?.checkpoint_latitude,
+      checkpoint?.location?.latitude,
+      checkpoint?.location?.lat,
+      coordinates?.[1]
+    );
+    const longitude = numericValue(
+      checkpoint?.longitude,
+      checkpoint?.lon,
+      checkpoint?.lng,
+      checkpoint?.checkpoint_longitude,
+      checkpoint?.location?.longitude,
+      checkpoint?.location?.lon,
+      checkpoint?.location?.lng,
+      coordinates?.[0]
+    );
+
+    return latitude === null || longitude === null
+      ? null
+      : [latitude, longitude];
+  }
+
+  function markerColor(checkpoint) {
+    const riskLevel = String(checkpoint?.risk_level ?? "").toLowerCase();
+    const roadCondition = String(
+      checkpoint?.road_condition ?? ""
+    ).toLowerCase();
+    const factors = Array.isArray(checkpoint?.factors)
+      ? checkpoint.factors.map((factor) => String(factor).toLowerCase())
+      : [];
+    const score = Number(checkpoint?.risk_score ?? 0);
+
+    if (
+      riskLevel === "blocked" ||
+      roadCondition === "closed" ||
+      factors.includes("road closure") ||
+      score >= 100
+    ) {
+      return "#7f1d1d";
+    }
+    if (riskLevel === "high" || score >= 60) {
+      return "#dc2626";
+    }
+    if (riskLevel === "moderate" || score >= 30) {
+      return "#f59e0b";
+    }
+    return "#16a34a";
+  }
+
+  function eventDescription(event) {
+    if (!event || typeof event !== "object") {
+      return null;
+    }
+    return firstDefined(
+      event.description,
+      event.event_description,
+      event.title,
+      event.headline,
+      event.event_type,
+      event.type
+    );
+  }
+
+  function tooltipHtml(checkpoint, checkpointNumber) {
+    const weather =
+      checkpoint?.weather && typeof checkpoint.weather === "object"
+        ? checkpoint.weather
+        : {};
+    const event =
+      checkpoint?.matched_road_event &&
+      typeof checkpoint.matched_road_event === "object"
+        ? checkpoint.matched_road_event
+        : null;
+
+    const label = firstDefined(
+      checkpoint?.segment_label,
+      checkpoint?.label,
+      `Checkpoint ${checkpointNumber}`
+    );
+    const score = firstDefined(checkpoint?.risk_score, 0);
+    const level = firstDefined(checkpoint?.risk_level, "Low");
+    const weatherCondition = firstDefined(
+      weather.condition,
+      weather.weather_condition,
+      checkpoint?.weather_condition
+    );
+    const temperature = formatNumber(
+      firstDefined(
+        weather.temperature_f,
+        weather.temperature,
+        checkpoint?.temperature_f
+      )
+    );
+    const wind = formatNumber(
+      firstDefined(
+        weather.wind_mph,
+        weather.wind_speed_mph,
+        checkpoint?.wind_mph
+      )
+    );
+    const visibility = formatNumber(
+      firstDefined(weather.visibility_miles, checkpoint?.visibility_miles)
+    );
+    const roadCondition = firstDefined(
+      checkpoint?.road_condition,
+      "normal"
+    );
+    const roadSource = firstDefined(checkpoint?.road_condition_source);
+    const factors = Array.isArray(checkpoint?.factors)
+      ? checkpoint.factors.filter(Boolean)
+      : [];
+    const matchedEventDescription = eventDescription(event);
+    const roadway = event
+      ? firstDefined(
+          event.roadway_name,
+          event.road_name,
+          event.roadway,
+          event.route,
+          event.location_description
+        )
+      : null;
+    const direction = event
+      ? firstDefined(event.direction, event.travel_direction)
+      : null;
+    const eventType = event
+      ? firstDefined(event.event_type, event.type)
+      : null;
+
+    const rows = [
+      `<div class="checkpoint-tooltip-heading">
+        <strong>${escapeHtml(label)}</strong>
+        <span class="checkpoint-tooltip-risk">${escapeHtml(level)} · ${escapeHtml(score)}</span>
+      </div>`,
+    ];
+
+    if (weatherCondition) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Weather:</strong> ${escapeHtml(weatherCondition)}</div>`
+      );
+    }
+    if (temperature !== null) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Temperature:</strong> ${escapeHtml(temperature)} °F</div>`
+      );
+    }
+    if (wind !== null) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Wind:</strong> ${escapeHtml(wind)} mph</div>`
+      );
+    }
+    if (visibility !== null) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Visibility:</strong> ${escapeHtml(visibility)} miles</div>`
+      );
+    }
+
+    rows.push(
+      `<div class="checkpoint-tooltip-row"><strong>Road:</strong> ${escapeHtml(roadCondition)}</div>`
+    );
+
+    if (roadSource && String(roadSource).toLowerCase() !== "request") {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Road source:</strong> ${escapeHtml(roadSource)}</div>`
+      );
+    }
+    if (eventType) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Event:</strong> ${escapeHtml(eventType)}</div>`
+      );
+    }
+    if (roadway) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Roadway:</strong> ${escapeHtml(roadway)}</div>`
+      );
+    }
+    if (direction) {
+      rows.push(
+        `<div class="checkpoint-tooltip-row"><strong>Direction:</strong> ${escapeHtml(direction)}</div>`
+      );
+    }
+
+    const hasMeaningfulIssue =
+      matchedEventDescription ||
+      factors.length > 0 ||
+      !["normal", "clear", ""].includes(
+        String(roadCondition).toLowerCase()
+      );
+
+    if (matchedEventDescription) {
+      rows.push(
+        `<div class="checkpoint-tooltip-issue"><strong>Matched issue:</strong> ${escapeHtml(matchedEventDescription)}</div>`
+      );
+    } else if (factors.length > 0) {
+      rows.push(
+        `<div class="checkpoint-tooltip-issue"><strong>Risk factors:</strong> ${escapeHtml(factors.join(", "))}</div>`
+      );
+    } else if (!hasMeaningfulIssue) {
+      rows.push(
+        '<div class="checkpoint-tooltip-clear">No significant roadway issue detected.</div>'
+      );
+    }
+
+    return `<div class="checkpoint-tooltip">${rows.join("")}</div>`;
+  }
+
+  function removeCheckpointLayer() {
+    checkpointLayer.clearLayers();
+    if (map.hasLayer(checkpointLayer)) {
+      map.removeLayer(checkpointLayer);
+    }
+  }
+
+  function updateToggleText() {
+    toggleButton.textContent = checkpointsVisible
+      ? "Hide checkpoints"
+      : "Show checkpoints";
+    toggleButton.setAttribute(
+      "aria-pressed",
+      checkpointsVisible ? "true" : "false"
+    );
+  }
+
+  function renderSelectedRouteCheckpoints() {
+    removeCheckpointLayer();
+    if (!checkpointsVisible) {
+      return;
+    }
+
+    const route = selectedRoute();
+    const checkpoints = checkpointResults(route);
+    if (!route || checkpoints.length === 0) {
+      toggleStatus.textContent =
+        "No completed checkpoint details are available for this route.";
+      return;
+    }
+
+    let displayedCount = 0;
+    checkpoints.forEach((checkpoint, index) => {
+      const coordinates = checkpointCoordinates(checkpoint);
+      if (!coordinates) {
+        return;
+      }
+
+      L.circleMarker(coordinates, {
+        radius: 7,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: markerColor(checkpoint),
+        fillOpacity: 0.96,
+      })
+        .bindTooltip(tooltipHtml(checkpoint, index + 1), {
+          direction: "top",
+          sticky: true,
+          opacity: 0.98,
+          className: "checkpoint-risk-tooltip",
+        })
+        .addTo(checkpointLayer);
+      displayedCount += 1;
+    });
+
+    checkpointLayer.addTo(map);
+    const routeLabel =
+      route.route_label ??
+      route.route_id ??
+      `Route ${selectedRouteIndex() + 1}`;
+    toggleStatus.textContent =
+      `${displayedCount} checkpoint${displayedCount === 1 ? "" : "s"} shown for ${routeLabel}. Hover over a point for details.`;
+  }
+
+  function setCheckpointVisibility(visible) {
+    checkpointsVisible = Boolean(visible);
+    updateToggleText();
+
+    if (checkpointsVisible) {
+      renderSelectedRouteCheckpoints();
+    } else {
+      removeCheckpointLayer();
+      toggleStatus.textContent = selectedRoute()
+        ? "Checkpoints are hidden. Turn them on to inspect the selected route."
+        : "Run a route analysis to make checkpoint details available.";
+    }
+  }
+
+  function resetCheckpointFeature() {
+    latestComparison = null;
+    toggleButton.disabled = true;
+    setCheckpointVisibility(false);
+  }
+
+  function bindRouteLayerRefreshHandlers() {
+    if (typeof routeLayers === "undefined" || !Array.isArray(routeLayers)) {
+      return;
+    }
+
+    routeLayers.forEach((layer) => {
+      if (!layer || layer.__checkpointRefreshBound) {
+        return;
+      }
+      layer.__checkpointRefreshBound = true;
+      layer.on("click", () => {
+        window.setTimeout(renderSelectedRouteCheckpoints, 0);
+      });
+    });
+  }
+
+  function captureComparison(payload) {
+    if (!payload || !Array.isArray(payload.routes) || payload.routes.length === 0) {
+      return;
+    }
+
+    latestComparison = payload;
+    toggleButton.disabled = false;
+    setCheckpointVisibility(false);
+    toggleStatus.textContent =
+      "Checkpoint details are ready. They are hidden by default.";
+    bindRouteLayerRefreshHandlers();
+  }
+
+  toggleButton.addEventListener("click", () => {
+    if (!toggleButton.disabled) {
+      setCheckpointVisibility(!checkpointsVisible);
+    }
+  });
+
+  analyzeButtonElement.addEventListener("click", resetCheckpointFeature);
+  resetButtonElement.addEventListener("click", resetCheckpointFeature);
+
+  routeGridElement.addEventListener("click", () => {
+    if (checkpointsVisible) {
+      window.setTimeout(renderSelectedRouteCheckpoints, 0);
+    }
+  });
+
+  const routeGridObserver = new MutationObserver(() => {
+    if (routeGridElement.children.length === 0) {
+      if (latestComparison) {
+        resetCheckpointFeature();
+      }
+      return;
+    }
+
+    bindRouteLayerRefreshHandlers();
+    if (checkpointsVisible) {
+      window.setTimeout(renderSelectedRouteCheckpoints, 0);
+    }
+  });
+  routeGridObserver.observe(routeGridElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (...argumentsList) => {
+    const response = await originalFetch(...argumentsList);
+    const requestInput = argumentsList[0];
+    const requestUrl =
+      typeof requestInput === "string"
+        ? requestInput
+        : requestInput?.url ?? String(requestInput ?? "");
+
+    if (response.ok && requestUrl.includes("route_comparison_summary/")) {
+      response
+        .clone()
+        .json()
+        .then((payload) => {
+          window.setTimeout(() => captureComparison(payload), 0);
+        })
+        .catch((error) => {
+          console.warn(
+            "Could not read checkpoint details from the route summary.",
+            error
+          );
+        });
+    }
+
+    return response;
+  };
+
+  updateToggleText();
+})();
+</script>
+<!-- CHECKPOINT_MARKER_FEATURE_END -->
 </body>
 </html>
