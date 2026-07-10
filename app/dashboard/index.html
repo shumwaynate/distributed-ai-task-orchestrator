@@ -2317,5 +2317,1114 @@
 })();
 </script>
 <!-- CHECKPOINT_MARKER_FEATURE_END -->
+
+<!-- HTML_REPORT_EXPORT_FEATURE_START -->
+<style id="html-report-export-feature-styles">
+  .report-export-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 14px 0 18px;
+    padding: 12px;
+    border: 1px solid var(--border, #d8e0eb);
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+
+  .report-export-button {
+    min-width: 190px;
+    background: var(--accent, #2563eb);
+    color: #ffffff;
+  }
+
+  .report-export-button:disabled {
+    background: #cbd5e1;
+    color: #64748b;
+    cursor: not-allowed;
+  }
+
+  .report-export-status {
+    color: var(--muted, #64748b);
+    font-size: 0.84rem;
+  }
+
+  @media (max-width: 620px) {
+    .report-export-button,
+    .report-export-status {
+      width: 100%;
+    }
+  }
+</style>
+
+<script id="html-report-export-feature">
+(() => {
+  "use strict";
+
+  const resultsPanel = document.getElementById("resultsPanel");
+  const routeGrid = document.getElementById("routeGrid");
+  const analyzeButton = document.getElementById("analyzeButton");
+  const resetButton = document.getElementById("resetButton");
+
+  if (!resultsPanel || !routeGrid || !analyzeButton || !resetButton) {
+    console.warn("HTML report export was not initialized because dashboard elements are missing.");
+    return;
+  }
+
+  const resultsHeader = resultsPanel.querySelector(".results-header");
+  const toolbar = document.createElement("div");
+  toolbar.className = "report-export-toolbar";
+  toolbar.setAttribute("aria-label", "Route-risk report export");
+  toolbar.innerHTML = `
+    <button
+      id="downloadHtmlReportButton"
+      class="report-export-button"
+      type="button"
+      disabled
+    >
+      Download HTML report
+    </button>
+    <span id="htmlReportExportStatus" class="report-export-status">
+      Complete a route comparison to create a report.
+    </span>
+  `;
+
+  if (resultsHeader?.nextSibling) {
+    resultsPanel.insertBefore(toolbar, resultsHeader.nextSibling);
+  } else {
+    resultsPanel.insertBefore(toolbar, routeGrid);
+  }
+
+  const downloadButton = document.getElementById("downloadHtmlReportButton");
+  const exportStatus = document.getElementById("htmlReportExportStatus");
+
+  let latestComparison = null;
+  let latestSubmissionRequest = null;
+  let latestJobStatus = null;
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function firstDefined(...values) {
+    return values.find(
+      (value) => value !== undefined && value !== null && value !== ""
+    );
+  }
+
+  function numberValue(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function formatNumber(value, decimals = 1, fallback = "—") {
+    const number = numberValue(value);
+    return number === null ? fallback : number.toFixed(decimals);
+  }
+
+  function formatMiles(meters) {
+    const number = numberValue(meters);
+    return number === null ? "—" : `${(number / 1609.344).toFixed(1)} mi`;
+  }
+
+  function formatMinutes(seconds) {
+    const number = numberValue(seconds);
+    return number === null ? "—" : `${(number / 60).toFixed(1)} min`;
+  }
+
+  function formatBoolean(value) {
+    return value ? "Yes" : "No";
+  }
+
+  function normalizeText(value, fallback = "—") {
+    const text = String(value ?? "").trim();
+    return text || fallback;
+  }
+
+  function formatLocation(location, fallbackLabel) {
+    if (!location || typeof location !== "object") {
+      return normalizeText(location, fallbackLabel);
+    }
+
+    const label = firstDefined(
+      location.label,
+      location.name,
+      location.location_label,
+      fallbackLabel
+    );
+    const latitude = numberValue(
+      firstDefined(location.latitude, location.lat)
+    );
+    const longitude = numberValue(
+      firstDefined(location.longitude, location.lon, location.lng)
+    );
+
+    if (latitude === null || longitude === null) {
+      return normalizeText(label, fallbackLabel);
+    }
+
+    return `${normalizeText(label, fallbackLabel)} (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
+  }
+
+  // HTML_REPORT_LOCATION_FIX_V1
+  function endpointNumber(value) {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function parseCoordinateText(value) {
+    const match = String(value ?? "").trim().match(
+      /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/
+    );
+
+    if (!match) {
+      return null;
+    }
+
+    const latitude = endpointNumber(match[1]);
+    const longitude = endpointNumber(match[2]);
+
+    if (latitude === null || longitude === null) {
+      return null;
+    }
+
+    return { latitude, longitude };
+  }
+
+  function normalizedLocationLabel(kind, value) {
+    const defaultLabel = kind === "origin" ? "Origin" : "Destination";
+    const text = String(value ?? "").trim();
+
+    if (!text) {
+      return defaultLabel;
+    }
+
+    const genericLabels = new Set([
+      "origin",
+      "selected origin",
+      "destination",
+      "selected destination",
+    ]);
+
+    return genericLabels.has(text.toLowerCase()) ? defaultLabel : text;
+  }
+
+  function resolveReportLocation(kind, comparison) {
+    const request =
+      latestSubmissionRequest &&
+      typeof latestSubmissionRequest === "object"
+        ? latestSubmissionRequest
+        : {};
+
+    const comparisonLocation =
+      comparison?.[kind] && typeof comparison[kind] === "object"
+        ? comparison[kind]
+        : {};
+
+    let latitude = endpointNumber(request[`${kind}_latitude`]);
+    let longitude = endpointNumber(request[`${kind}_longitude`]);
+
+    const livePoint =
+      kind === "origin"
+        ? (typeof origin !== "undefined" ? origin : null)
+        : (typeof destination !== "undefined" ? destination : null);
+
+    if ((latitude === null || longitude === null) && livePoint) {
+      latitude = endpointNumber(livePoint.lat);
+      longitude = endpointNumber(livePoint.lng);
+    }
+
+    if (latitude === null || longitude === null) {
+      const coordinateElement = document.getElementById(
+        kind === "origin" ? "originValue" : "destinationValue"
+      );
+      const parsedCoordinates = parseCoordinateText(
+        coordinateElement?.textContent
+      );
+
+      if (parsedCoordinates) {
+        latitude = parsedCoordinates.latitude;
+        longitude = parsedCoordinates.longitude;
+      }
+    }
+
+    if (latitude === null || longitude === null) {
+      latitude = endpointNumber(
+        firstDefined(
+          comparisonLocation.latitude,
+          comparisonLocation.lat
+        )
+      );
+      longitude = endpointNumber(
+        firstDefined(
+          comparisonLocation.longitude,
+          comparisonLocation.lon,
+          comparisonLocation.lng
+        )
+      );
+    }
+
+    const label = normalizedLocationLabel(
+      kind,
+      firstDefined(
+        request[`${kind}_label`],
+        comparisonLocation.label,
+        comparisonLocation.name,
+        comparisonLocation.location_label
+      )
+    );
+
+    return { label, latitude, longitude };
+  }
+
+  function formatResolvedLocation(location) {
+    if (
+      endpointNumber(location?.latitude) === null ||
+      endpointNumber(location?.longitude) === null
+    ) {
+      return normalizeText(location?.label, "Location unavailable");
+    }
+
+    return `${normalizeText(location.label, "Location")} (${Number(location.latitude).toFixed(5)}, ${Number(location.longitude).toFixed(5)})`;
+  }
+
+  function hasResolvedCoordinates(location) {
+    return (
+      endpointNumber(location?.latitude) !== null &&
+      endpointNumber(location?.longitude) !== null
+    );
+  }
+
+  function coordinateSlug(value) {
+    const number = endpointNumber(value);
+
+    if (number === null) {
+      return null;
+    }
+
+    const prefix = number < 0 ? "n" : "";
+    return `${prefix}${Math.abs(number).toFixed(4).replace(".", "-")}`;
+  }
+
+  function segmentResults(route) {
+    const results =
+      route?.aggregated_route_risk?.segment_results ??
+      route?.segment_results ??
+      [];
+    return Array.isArray(results) ? results : [];
+  }
+
+  function matchedEvent(checkpoint) {
+    const event = checkpoint?.matched_road_event;
+    return event && typeof event === "object" ? event : null;
+  }
+
+  function eventDescription(event) {
+    if (!event || typeof event !== "object") {
+      return null;
+    }
+
+    return firstDefined(
+      event.description,
+      event.event_description,
+      event.title,
+      event.headline,
+      event.event_type,
+      event.type
+    );
+  }
+
+  function checkpointLabel(checkpoint, index) {
+    return firstDefined(
+      checkpoint?.segment_label,
+      checkpoint?.label,
+      checkpoint?.checkpoint_label,
+      `Checkpoint ${index + 1}`
+    );
+  }
+
+  function checkpointWeather(checkpoint) {
+    const weather =
+      checkpoint?.weather && typeof checkpoint.weather === "object"
+        ? checkpoint.weather
+        : {};
+
+    return firstDefined(
+      weather.condition,
+      weather.weather_condition,
+      checkpoint?.weather_condition,
+      "Clear / no major weather issue"
+    );
+  }
+
+  function checkpointIssue(checkpoint) {
+    const event = matchedEvent(checkpoint);
+    const description = eventDescription(event);
+    if (description) {
+      return description;
+    }
+
+    const factors = Array.isArray(checkpoint?.factors)
+      ? checkpoint.factors.filter(Boolean)
+      : [];
+    if (factors.length > 0) {
+      return factors.join(", ");
+    }
+
+    const roadCondition = String(checkpoint?.road_condition ?? "normal");
+    if (!["", "normal", "clear"].includes(roadCondition.toLowerCase())) {
+      return roadCondition;
+    }
+
+    return "No significant roadway issue detected";
+  }
+
+  function countRouteConditions(route) {
+    let construction = 0;
+    let closures = 0;
+
+    for (const checkpoint of segmentResults(route)) {
+      const roadCondition = String(checkpoint?.road_condition ?? "").toLowerCase();
+      const factors = Array.isArray(checkpoint?.factors)
+        ? checkpoint.factors.map((factor) => String(factor).toLowerCase())
+        : [];
+      const eventType = String(
+        firstDefined(
+          matchedEvent(checkpoint)?.event_type,
+          matchedEvent(checkpoint)?.type,
+          ""
+        )
+      ).toLowerCase();
+
+      if (
+        roadCondition.includes("construction") ||
+        eventType.includes("construction") ||
+        factors.some((factor) => factor.includes("construction"))
+      ) {
+        construction += 1;
+      }
+
+      if (
+        roadCondition === "closed" ||
+        eventType.includes("closure") ||
+        eventType.includes("closed") ||
+        factors.some((factor) => factor.includes("road closure"))
+      ) {
+        closures += 1;
+      }
+    }
+
+    return { construction, closures };
+  }
+
+  function riskClass(level, blocked) {
+    if (blocked) {
+      return "risk-blocked";
+    }
+
+    const normalized = String(level ?? "").toLowerCase();
+    if (normalized.includes("high")) {
+      return "risk-high";
+    }
+    if (normalized.includes("moderate") || normalized.includes("medium")) {
+      return "risk-moderate";
+    }
+    return "risk-low";
+  }
+
+  function recommendedRoute(comparison) {
+    const recommended = comparison?.recommended_route;
+    if (!recommended || typeof recommended !== "object") {
+      return null;
+    }
+
+    const routes = Array.isArray(comparison.routes) ? comparison.routes : [];
+    return routes.find(
+      (route) =>
+        route.route_id === recommended.route_id ||
+        route.route_label === recommended.route_label
+    ) ?? recommended;
+  }
+
+  function uniqueEvents(route) {
+    const eventsByKey = new Map();
+
+    for (const checkpoint of segmentResults(route)) {
+      const event = matchedEvent(checkpoint);
+      if (!event) {
+        continue;
+      }
+
+      const key = [
+        firstDefined(event.source, "unknown"),
+        firstDefined(event.event_id, event.id, eventDescription(event), "event"),
+      ].join("::");
+      if (!eventsByKey.has(key)) {
+        eventsByKey.set(key, event);
+      }
+    }
+
+    const upcoming = Array.isArray(route?.upcoming_road_events)
+      ? route.upcoming_road_events
+      : [];
+    for (const event of upcoming) {
+      if (!event || typeof event !== "object") {
+        continue;
+      }
+      const key = [
+        firstDefined(event.source, "unknown"),
+        firstDefined(event.event_id, event.id, eventDescription(event), "event"),
+      ].join("::");
+      if (!eventsByKey.has(key)) {
+        eventsByKey.set(key, event);
+      }
+    }
+
+    return Array.from(eventsByKey.values());
+  }
+
+  function reportFilename(comparison) {
+    function slug(value) {
+      return String(value ?? "route")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 45) || "route";
+    }
+
+    function locationSlug(location, fallback) {
+      const label = String(location?.label ?? "").trim();
+      const genericLabels = new Set([
+        "origin",
+        "selected origin",
+        "destination",
+        "selected destination",
+      ]);
+
+      if (label && !genericLabels.has(label.toLowerCase())) {
+        return slug(label);
+      }
+
+      const latitudePart = coordinateSlug(location?.latitude);
+      const longitudePart = coordinateSlug(location?.longitude);
+
+      if (latitudePart && longitudePart) {
+        return `${latitudePart}-${longitudePart}`;
+      }
+
+      return fallback;
+    }
+
+    const originLocation = resolveReportLocation("origin", comparison);
+    const destinationLocation = resolveReportLocation(
+      "destination",
+      comparison
+    );
+
+    return `route-risk-${locationSlug(originLocation, "origin")}-to-${locationSlug(destinationLocation, "destination")}.html`;
+  }
+
+
+  function buildReport(comparison) {
+    const routes = Array.isArray(comparison.routes) ? comparison.routes : [];
+    const recommended = recommendedRoute(comparison);
+    const recommendedSegments = segmentResults(recommended);
+    const importantEvents = uniqueEvents(recommended);
+    const generatedAt = new Date();
+    const originLocation = resolveReportLocation(
+      "origin",
+      comparison
+    );
+    const destinationLocation = resolveReportLocation(
+      "destination",
+      comparison
+    );
+    const origin = formatResolvedLocation(originLocation);
+    const destination = formatResolvedLocation(destinationLocation);
+    const drivingPeriod = latestSubmissionRequest?.is_night ? "Night" : "Day";
+    const completedTasks = firstDefined(
+      latestJobStatus?.completed_tasks,
+      comparison.total_checkpoint_task_count
+    );
+    const failedTasks = firstDefined(latestJobStatus?.failed_tasks, 0);
+
+    const routeRows = routes.map((route) => {
+      const counts = countRouteConditions(route);
+      const isRecommended =
+        recommended &&
+        (route.route_id === recommended.route_id ||
+          route.route_label === recommended.route_label);
+      const level = firstDefined(route.route_risk_level, "Unknown");
+      return `
+        <tr class="${isRecommended ? "recommended-row" : ""}">
+          <td>${escapeHtml(firstDefined(route.route_label, route.route_id, "Route"))}</td>
+          <td>${escapeHtml(formatMiles(route.distance_meters))}</td>
+          <td>${escapeHtml(formatMinutes(route.duration_seconds))}</td>
+          <td>${escapeHtml(formatNumber(route.route_risk_score, 0))}</td>
+          <td><span class="risk-pill ${riskClass(level, route.route_blocked)}">${escapeHtml(level)}</span></td>
+          <td>${counts.construction}</td>
+          <td>${counts.closures}</td>
+          <td>${isRecommended ? "Yes" : "No"}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const checkpointRows = recommendedSegments.map((checkpoint, index) => {
+      const level = firstDefined(checkpoint.risk_level, "Unknown");
+      return `
+        <tr>
+          <td>${escapeHtml(checkpointLabel(checkpoint, index))}</td>
+          <td>${escapeHtml(formatNumber(checkpoint.risk_score, 0))}</td>
+          <td><span class="risk-pill ${riskClass(level, String(checkpoint.road_condition).toLowerCase() === "closed")}">${escapeHtml(level)}</span></td>
+          <td>${escapeHtml(checkpointWeather(checkpoint))}</td>
+          <td>${escapeHtml(firstDefined(checkpoint.road_condition, "normal"))}</td>
+          <td>${escapeHtml(checkpointIssue(checkpoint))}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const eventCards = importantEvents.map((event) => {
+      const roadway = firstDefined(
+        event.roadway_name,
+        event.road_name,
+        event.roadway,
+        event.route,
+        "Roadway not provided"
+      );
+      const direction = firstDefined(event.direction, event.travel_direction, "Not specified");
+      const eventType = firstDefined(event.event_type, event.type, "Road event");
+      const schedule = firstDefined(
+        event.schedule_description,
+        event.schedule,
+        event.start_date,
+        "Not provided"
+      );
+      const detour = firstDefined(
+        event.detour,
+        event.detour_description,
+        event.alternate_route,
+        "No detour details provided"
+      );
+
+      return `
+        <article class="event-card">
+          <h3>${escapeHtml(eventType)} — ${escapeHtml(roadway)}</h3>
+          <dl class="compact-list">
+            <div><dt>Direction</dt><dd>${escapeHtml(direction)}</dd></div>
+            <div><dt>Description</dt><dd>${escapeHtml(eventDescription(event) ?? "No description provided")}</dd></div>
+            <div><dt>Schedule</dt><dd>${escapeHtml(schedule)}</dd></div>
+            <div><dt>Detour</dt><dd>${escapeHtml(detour)}</dd></div>
+            <div><dt>Source</dt><dd>${escapeHtml(firstDefined(event.source, "Unknown"))}</dd></div>
+          </dl>
+        </article>
+      `;
+    }).join("");
+
+    const recommendedLevel = firstDefined(recommended?.route_risk_level, "Unknown");
+    const recommendedReason = firstDefined(
+      recommended?.summary,
+      comparison?.recommended_route?.summary,
+      "Selected from the completed alternatives using the route-risk comparison results."
+    );
+    const highestRisk = recommended?.highest_risk_segment;
+    const stateCodes = Array.isArray(comparison.state_codes)
+      ? comparison.state_codes.join(", ")
+      : normalizeText(comparison.state_codes);
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Route Risk Analysis Report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5b687b;
+      --line: #dce3ec;
+      --panel: #f8fafc;
+      --accent: #2563eb;
+      --low: #166534;
+      --low-bg: #dcfce7;
+      --moderate: #92400e;
+      --moderate-bg: #fef3c7;
+      --high: #991b1b;
+      --high-bg: #fee2e2;
+      --blocked: #ffffff;
+      --blocked-bg: #7f1d1d;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #eef2f7;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    .report-shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 28px auto;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.1);
+      overflow: hidden;
+    }
+
+    .report-header {
+      padding: 34px 38px;
+      background: linear-gradient(135deg, #172033, #243b64);
+      color: #ffffff;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: #bfdbfe;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 10px; font-size: clamp(2rem, 4vw, 3rem); }
+    h2 { margin-bottom: 14px; font-size: 1.4rem; }
+    h3 { margin-bottom: 10px; font-size: 1.05rem; }
+
+    .subtitle { margin-bottom: 0; color: #dbeafe; }
+
+    .report-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding: 16px 38px 0;
+    }
+
+    .print-button {
+      border: 0;
+      border-radius: 9px;
+      padding: 10px 15px;
+      background: var(--accent);
+      color: #ffffff;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .report-content { padding: 24px 38px 40px; }
+
+    .section {
+      margin-top: 26px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+
+    .summary-grid,
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+    }
+
+    .summary-card,
+    .metric,
+    .event-card,
+    .recommendation-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      padding: 16px;
+    }
+
+    .summary-card strong,
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 1.02rem;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .recommendation-card {
+      border-left: 6px solid var(--accent);
+      background: #eff6ff;
+    }
+
+    .recommendation-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .risk-pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.76rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .risk-low { color: var(--low); background: var(--low-bg); }
+    .risk-moderate { color: var(--moderate); background: var(--moderate-bg); }
+    .risk-high { color: var(--high); background: var(--high-bg); }
+    .risk-blocked { color: var(--blocked); background: var(--blocked-bg); }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      background: #ffffff;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 0.74rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    .recommended-row td { background: #eff6ff; }
+
+    .compact-list {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+    }
+
+    .compact-list div {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 10px;
+    }
+
+    .compact-list dt { color: var(--muted); font-weight: 750; }
+    .compact-list dd { margin: 0; }
+
+    .event-list { display: grid; gap: 12px; }
+
+    .note,
+    .disclaimer {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .disclaimer {
+      margin-top: 28px;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff7ed;
+    }
+
+    @media (max-width: 700px) {
+      .report-shell { width: 100%; margin: 0; border-radius: 0; }
+      .report-header, .report-content { padding-left: 20px; padding-right: 20px; }
+      .report-actions { padding-right: 20px; }
+      .compact-list div { grid-template-columns: 1fr; gap: 2px; }
+    }
+
+    @media print {
+      body { background: #ffffff; }
+      .report-shell { width: 100%; margin: 0; border: 0; box-shadow: none; }
+      .report-actions { display: none; }
+      .section, .event-card, .recommendation-card { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="report-shell">
+    <header class="report-header">
+      <p class="eyebrow">Distributed Route Risk Engine</p>
+      <h1>Route Risk Analysis Report</h1>
+      <p class="subtitle">Generated ${escapeHtml(generatedAt.toLocaleString())}</p>
+    </header>
+
+    <div class="report-actions">
+      <button class="print-button" type="button" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+
+    <div class="report-content">
+      <section class="summary-grid" aria-label="Analysis overview">
+        <article class="summary-card"><span class="label">Origin</span><strong>${escapeHtml(origin)}</strong></article>
+        <article class="summary-card"><span class="label">Destination</span><strong>${escapeHtml(destination)}</strong></article>
+        <article class="summary-card"><span class="label">Driving period</span><strong>${escapeHtml(drivingPeriod)}</strong></article>
+        <article class="summary-card"><span class="label">Routes analyzed</span><strong>${escapeHtml(comparison.route_candidate_count ?? routes.length)}</strong></article>
+      </section>
+
+      <section class="section">
+        <h2>Final recommendation</h2>
+        ${recommended ? `
+          <article class="recommendation-card">
+            <div class="recommendation-title">
+              <div>
+                <span class="label">Recommended route</span>
+                <h3>${escapeHtml(firstDefined(recommended.route_label, recommended.route_id, "Recommended route"))}</h3>
+              </div>
+              <span class="risk-pill ${riskClass(recommendedLevel, recommended.route_blocked)}">${escapeHtml(recommendedLevel)} · Score ${escapeHtml(formatNumber(recommended.route_risk_score, 0))}</span>
+            </div>
+            <p>${escapeHtml(recommendedReason)}</p>
+            <div class="metric-grid">
+              <div class="metric"><span class="label">Distance</span><strong>${escapeHtml(formatMiles(recommended.distance_meters))}</strong></div>
+              <div class="metric"><span class="label">Estimated duration</span><strong>${escapeHtml(formatMinutes(recommended.duration_seconds))}</strong></div>
+              <div class="metric"><span class="label">Blocked</span><strong>${escapeHtml(formatBoolean(recommended.route_blocked))}</strong></div>
+              <div class="metric"><span class="label">Average checkpoint score</span><strong>${escapeHtml(formatNumber(recommended.average_segment_score, 1))}</strong></div>
+            </div>
+          </article>
+        ` : '<p>No recommended route was available.</p>'}
+      </section>
+
+      <section class="section">
+        <h2>Route comparison</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Distance</th>
+                <th>Duration</th>
+                <th>Score</th>
+                <th>Risk</th>
+                <th>Construction checkpoints</th>
+                <th>Closure checkpoints</th>
+                <th>Recommended</th>
+              </tr>
+            </thead>
+            <tbody>${routeRows || '<tr><td colspan="8">No route comparison data was available.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Recommended route details</h2>
+        <div class="metric-grid">
+          <div class="metric"><span class="label">Highest-risk checkpoint</span><strong>${escapeHtml(firstDefined(highestRisk?.segment_label, highestRisk?.label, "Not identified"))}</strong></div>
+          <div class="metric"><span class="label">Highest checkpoint score</span><strong>${escapeHtml(formatNumber(highestRisk?.risk_score, 0))}</strong></div>
+          <div class="metric"><span class="label">Blocking checkpoints</span><strong>${escapeHtml(recommended?.blocking_segment_count ?? 0)}</strong></div>
+          <div class="metric"><span class="label">Matched-event checkpoints</span><strong>${escapeHtml(recommended?.matched_road_event_checkpoint_count ?? 0)}</strong></div>
+        </div>
+        ${recommended?.route_warning ? `<p class="disclaimer"><strong>Route warning:</strong> ${escapeHtml(recommended.route_warning)}</p>` : ""}
+      </section>
+
+      <section class="section">
+        <h2>Checkpoint findings</h2>
+        <p class="note">Checkpoint details below are for the recommended route.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Checkpoint</th>
+                <th>Score</th>
+                <th>Risk</th>
+                <th>Weather</th>
+                <th>Road condition</th>
+                <th>Relevant finding</th>
+              </tr>
+            </thead>
+            <tbody>${checkpointRows || '<tr><td colspan="6">No checkpoint details were available.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </section>
+
+      ${importantEvents.length > 0 ? `
+        <section class="section">
+          <h2>Important roadway events</h2>
+          <div class="event-list">${eventCards}</div>
+        </section>
+      ` : ""}
+
+      <section class="section">
+        <h2>System and processing evidence</h2>
+        <dl class="compact-list">
+          <div><dt>Job ID</dt><dd>${escapeHtml(comparison.job_id)}</dd></div>
+          <div><dt>Comparison status</dt><dd>${escapeHtml(comparison.comparison_status)}</dd></div>
+          <div><dt>Route source</dt><dd>${escapeHtml(firstDefined(comparison.route_source, recommended?.source, recommended?.provider, "Unknown"))}</dd></div>
+          <div><dt>Weather mode</dt><dd>${escapeHtml(firstDefined(comparison.weather_mode, "Unknown"))}</dd></div>
+          <div><dt>Detected states</dt><dd>${escapeHtml(stateCodes || "None")}</dd></div>
+          <div><dt>Live roadway events loaded</dt><dd>${escapeHtml(comparison.live_state_event_count ?? 0)}</dd></div>
+          <div><dt>Checkpoint tasks</dt><dd>${escapeHtml(comparison.total_checkpoint_task_count ?? 0)}</dd></div>
+          <div><dt>Completed tasks</dt><dd>${escapeHtml(completedTasks ?? "Unknown")}</dd></div>
+          <div><dt>Failed tasks</dt><dd>${escapeHtml(failedTasks ?? "Unknown")}</dd></div>
+          <div><dt>Checkpoints per route</dt><dd>${escapeHtml(comparison.checkpoint_count_per_route ?? "Unknown")}</dd></div>
+        </dl>
+        <p class="note">This analysis distributed independent route-checkpoint tasks through the project’s Redis and Celery worker pipeline and aggregated the completed results into a route-level recommendation.</p>
+      </section>
+
+      <p class="disclaimer"><strong>Prototype disclaimer:</strong> This report is produced for senior-project demonstration and research purposes. It is not a replacement for official navigation, roadway, emergency, weather, or public-safety guidance.</p>
+    </div>
+  </main>
+</body>
+</html>`;
+  }
+
+  function downloadReport() {
+    if (!latestComparison) {
+      exportStatus.textContent =
+        "No completed route comparison is available yet.";
+      return;
+    }
+
+    const originLocation = resolveReportLocation(
+      "origin",
+      latestComparison
+    );
+    const destinationLocation = resolveReportLocation(
+      "destination",
+      latestComparison
+    );
+
+    if (
+      !hasResolvedCoordinates(originLocation) ||
+      !hasResolvedCoordinates(destinationLocation)
+    ) {
+      exportStatus.textContent =
+        "Could not read the selected origin and destination coordinates. Keep both map points selected and try again.";
+      return;
+    }
+
+    const report = buildReport(latestComparison);
+    const blob = new Blob(
+      [report],
+      { type: "text/html;charset=utf-8" }
+    );
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = reportFilename(latestComparison);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(
+      () => URL.revokeObjectURL(downloadUrl),
+      1000
+    );
+
+    exportStatus.textContent = `Downloaded ${anchor.download}`;
+  }
+
+
+  function resetExport() {
+    latestComparison = null;
+    latestSubmissionRequest = null;
+    latestJobStatus = null;
+    downloadButton.disabled = true;
+    exportStatus.textContent = "Complete a route comparison to create a report.";
+  }
+
+  function requestUrl(requestInput) {
+    return typeof requestInput === "string"
+      ? requestInput
+      : requestInput?.url ?? String(requestInput ?? "");
+  }
+
+  function requestBody(options) {
+    const body = options?.body;
+    if (typeof body !== "string") {
+      return null;
+    }
+
+    try {
+      return JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
+
+  downloadButton.addEventListener("click", downloadReport);
+
+  // Run the reset during the capture phase so it happens before the
+  // dashboard's normal Analyze click handler submits the request.
+  // The fetch wrapper below can then save the new origin/destination
+  // payload without a later click listener clearing it.
+  analyzeButton.addEventListener("click", resetExport, { capture: true });
+  resetButton.addEventListener("click", resetExport);
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (...argumentsList) => {
+    const url = requestUrl(argumentsList[0]);
+    const options = argumentsList[1] ?? {};
+
+    if (url.includes("submit_route_comparison_job")) {
+      const parsedBody = requestBody(options);
+      if (parsedBody) {
+        latestSubmissionRequest = parsedBody;
+      }
+    }
+
+    const response = await originalFetch(...argumentsList);
+
+    if (response.ok && url.includes("job_status/")) {
+      response
+        .clone()
+        .json()
+        .then((payload) => {
+          if (payload && typeof payload === "object") {
+            latestJobStatus = payload;
+          }
+        })
+        .catch(() => {});
+    }
+
+    if (response.ok && url.includes("route_comparison_summary/")) {
+      response
+        .clone()
+        .json()
+        .then((payload) => {
+          if (!payload || !Array.isArray(payload.routes) || payload.routes.length === 0) {
+            return;
+          }
+
+          latestComparison = payload;
+          downloadButton.disabled = false;
+          exportStatus.textContent =
+            "HTML report ready. It includes the comparison, recommendation, checkpoints, roadway events, and processing evidence.";
+        })
+        .catch((error) => {
+          console.warn("Could not prepare the HTML report export.", error);
+        });
+    }
+
+    return response;
+  };
+})();
+</script>
+<!-- HTML_REPORT_EXPORT_FEATURE_END -->
 </body>
 </html>
