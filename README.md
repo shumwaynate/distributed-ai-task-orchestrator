@@ -389,7 +389,7 @@ The project is not intended to replace a commercial navigation application. Its 
 ## Project Structure
 
 ```text
-distributed-ai-task-orchestrator/
+distributed-route-risk-engine/
 |
 |-- app/
 |   |-- api/           FastAPI endpoints and job coordination
