@@ -1,0 +1,109 @@
+﻿{
+    "service":  "Distributed Route Risk Engine",
+    "api_version":  "1.6.0",
+    "checked_at_utc":  "2026-07-16T07:10:45.868900+00:00",
+    "overall_status":  "healthy",
+    "ready_for_route_jobs":  true,
+    "ready_for_route_comparison":  true,
+    "components":  {
+                       "api":  {
+                                   "status":  "available",
+                                   "available":  true
+                               },
+                       "redis":  {
+                                     "status":  "available",
+                                     "connected":  true
+                                 },
+                       "celery_workers":  {
+                                              "status":  "ready",
+                                              "ready":  true,
+                                              "worker_count":  8,
+                                              "worker_names":  [
+                                                                   "docker_worker_1@1fc220d1b5dc",
+                                                                   "docker_worker_1@2df056df3202",
+                                                                   "docker_worker_1@58a0676f85f5",
+                                                                   "docker_worker_1@7807e0cd0f41",
+                                                                   "docker_worker_1@86c42c1c3de2",
+                                                                   "docker_worker_1@98a4efe2ca94",
+                                                                   "docker_worker_1@b83c6091ffe0",
+                                                                   "docker_worker_1@d59ac7888138"
+                                                               ]
+                                          }
+                   },
+    "capabilities":  {
+                         "supported_workload_types":  [
+                                                          "route_segment_risk",
+                                                          "live_weather_route_segment_risk",
+                                                          "route_risk_summary"
+                                                      ],
+                         "route_analysis":  {
+                                                "single_route":  true,
+                                                "multiple_route_comparison":  true,
+                                                "distributed_checkpoint_processing":  true,
+                                                "live_weather":  true,
+                                                "manual_road_events":  true,
+                                                "state_road_events":  true,
+                                                "day_night_scoring":  true,
+                                                "blocked_route_detection":  true,
+                                                "html_report_export":  true
+                                            },
+                         "weather_providers":  [
+                                                   {
+                                                       "id":  "open-meteo",
+                                                       "name":  "Open-Meteo",
+                                                       "implemented":  true,
+                                                       "requires_api_key":  false,
+                                                       "status":  "available"
+                                                   }
+                                               ],
+                         "routing_providers":  [
+                                                   {
+                                                       "id":  "openrouteservice",
+                                                       "name":  "HeiGIT OpenRouteService",
+                                                       "implemented":  true,
+                                                       "configured":  true,
+                                                       "status":  "available",
+                                                       "supports_alternative_routes":  true
+                                                   },
+                                                   {
+                                                       "id":  "osrm",
+                                                       "name":  "Open Source Routing Machine",
+                                                       "implemented":  true,
+                                                       "configured":  true,
+                                                       "status":  "available",
+                                                       "supports_alternative_routes":  false
+                                                   }
+                                               ],
+                         "road_event_providers":  [
+                                                      {
+                                                          "state_code":  "AZ",
+                                                          "name":  "Arizona 511",
+                                                          "source":  "arizona-511-events",
+                                                          "implemented":  true,
+                                                          "configured":  true,
+                                                          "status":  "available"
+                                                      },
+                                                      {
+                                                          "state_code":  "NV",
+                                                          "name":  "Nevada 511",
+                                                          "source":  "nevada-511-events",
+                                                          "implemented":  true,
+                                                          "configured":  true,
+                                                          "status":  "available"
+                                                      },
+                                                      {
+                                                          "state_code":  "UT",
+                                                          "name":  "Utah UDOT",
+                                                          "source":  "utah-udot-events",
+                                                          "implemented":  true,
+                                                          "configured":  true,
+                                                          "status":  "available"
+                                                      }
+                                                  ],
+                         "supported_state_codes":  [
+                                                       "AZ",
+                                                       "NV",
+                                                       "UT"
+                                                   ]
+                     }
+}

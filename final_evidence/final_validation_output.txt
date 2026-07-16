@@ -1,0 +1,63 @@
+﻿
+========================================================================
+DISTRIBUTED ROUTE RISK ENGINE - FINAL VALIDATION
+========================================================================
+Project root: <project-root>
+Python: <project-root>\.venv\Scripts\python.exe
+API: http://127.0.0.1:8000
+Started: 2026-07-16T01:09:40-06:00
+
+========================================================================
+1. PROJECT STRUCTURE AND SOURCE
+========================================================================
+[PASS] Required project files (0.001s)
+       Found all 26 required project files.
+[PASS] Python syntax compilation (0.111s)
+       Python source compiled without syntax errors.
+[PASS] State 511 provider registry (0.004s)
+       Nevada, Arizona, and Utah provider clients are registered.
+[PASS] Automatic route-state detection (0.440s)
+       Automatic route-geometry detection passed: NV -> ['NV']; AZ -> ['AZ']; UT -> ['UT']
+
+========================================================================
+2. FOCUSED LOCAL REGRESSION TESTS
+========================================================================
+[PASS] Day/Night schedule precedence (0.040s)
+       route_risk.testing.manual_driving_period_precedence_test: All precedence regression checks passed.
+[PASS] Geometry-aware closure matching (0.039s)
+       route_risk.testing.manual_geometry_aware_closure_test: All geometry-aware closure checks passed.
+[PASS] Nevada construction versus closure logic (0.174s)
+       route_risk.testing.manual_nevada_construction_logic_test: All Nevada construction logic checks passed.
+[PASS] Near-duplicate route filtering (0.063s)
+       route_risk.testing.manual_route_similarity_test: All route duplicate filtering checks passed.
+
+========================================================================
+3. BENCHMARK EVIDENCE
+========================================================================
+[PASS] Route-risk scaling evidence (0.006s)
+       40 tasks: 1 worker to 8 workers produced 7.34x runtime speedup and 7.34x throughput; higher-worker runtime was 4.375s.
+
+========================================================================
+4. LIVE DISTRIBUTED API VALIDATION
+========================================================================
+[PASS] API health and capability (0.024s)
+       API responded at http://127.0.0.1:8000; Single-route and multi-route comparison endpoints are available
+[PASS] Distributed single-route closure workflow (3.060s)
+       Job 91e72421-3354-4828-b9ca-a45e606a829a: 8/8 Celery tasks completed; closure produced Blocked score 100 with 1 blocking checkpoint(s).
+[PASS] Distributed route comparison and recommendation (7.481s)
+       Job 0cd38ef1-300c-4857-a4f4-520f0d9ee7b2: evaluated 3 route(s), completed 18/18 tasks, and recommended ORS Alternative Route 1 (Low, score 0).
+[PASS] Friendly long-route limitation response (0.594s)
+       Long alternative-route request returned the expected friendly HTTP 422 limitation response.
+
+========================================================================
+FINAL RESULT
+========================================================================
+PASS: 13
+FAIL: 0
+SKIP: 0
+TOTAL: 13
+Report: <project-root>\benchmarks\validation\final_validation_20260716_010952.json
+
+OVERALL STATUS: PASS
+The validated project areas are ready for final demonstration.
+
